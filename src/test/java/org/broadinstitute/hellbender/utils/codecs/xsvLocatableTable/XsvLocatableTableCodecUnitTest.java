@@ -31,6 +31,9 @@ public class XsvLocatableTableCodecUnitTest extends GATKBaseTest {
     private static final String TEST_RESOURCE_DIR = publicTestDir + "org/broadinstitute/hellbender/utils/codecs/xsvLocatableTable" + File.separator;
     private static final String TEST_FILE1 = TEST_RESOURCE_DIR + "xsv_locatable_test.csv";
     private static final String TEST_FILE2 = TEST_RESOURCE_DIR + "xsv_locatable_test2.tsv";
+
+    /** Uses column names, instead of index */
+    private static final String TEST_FILE3 = TEST_RESOURCE_DIR + "xsv_locatable_test3.csv";
     private static final String TEST_FILE_NO_CONFIG = TEST_RESOURCE_DIR + "xsv_locatable_test_no_config.csv";
 
     private static final List<String> file1Headers = Arrays.asList("XSV_LOCATABLE_TEST_NAME_Villain", "XSV_LOCATABLE_TEST_NAME_chr", "XSV_LOCATABLE_TEST_NAME_test_val", "XSV_LOCATABLE_TEST_NAME_start", "XSV_LOCATABLE_TEST_NAME_end", "XSV_LOCATABLE_TEST_NAME_Bond");
@@ -56,6 +59,7 @@ public class XsvLocatableTableCodecUnitTest extends GATKBaseTest {
                 { TEST_FILE1, true },
                 { TEST_FILE2, true },
                 { TEST_FILE_NO_CONFIG, false },
+                { TEST_FILE3, true },
         };
     }
 
@@ -75,6 +79,12 @@ public class XsvLocatableTableCodecUnitTest extends GATKBaseTest {
                         new XsvTableFeature(1, 2, 4, file2Headers, file2Line2, "SECOND_XSV_NAME")
                     )
                 },
+                { TEST_FILE3,
+                    Arrays.asList(
+                            new XsvTableFeature(1, 3, 4, file1Headers, file1Line1, "XSV_LOCATABLE_TEST_NAME"),
+                            new XsvTableFeature(1, 3, 4, file1Headers, file1Line2, "XSV_LOCATABLE_TEST_NAME")
+                    )
+                }
         };
     }
 

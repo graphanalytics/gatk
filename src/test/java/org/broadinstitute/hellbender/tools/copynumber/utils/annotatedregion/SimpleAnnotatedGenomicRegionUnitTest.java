@@ -22,7 +22,7 @@ public final class SimpleAnnotatedGenomicRegionUnitTest extends GATKBaseTest {
     public void basicTest() throws IOException {
         final Set<String> headersOfInterest = Sets.newHashSet(Arrays.asList("name", "learning_SAMPLE_0"));
         final List<SimpleAnnotatedGenomicRegion> simpleAnnotatedGenomicRegions =
-                SimpleAnnotatedGenomicRegion.readAnnotatedRegions(TEST_FILE, headersOfInterest);
+                SimpleAnnotatedGenomicRegionCollection.create(TEST_FILE, headersOfInterest).getRecords();
 
         Assert.assertEquals(simpleAnnotatedGenomicRegions.size(), 15);
         Assert.assertTrue(simpleAnnotatedGenomicRegions.stream()
@@ -50,7 +50,19 @@ public final class SimpleAnnotatedGenomicRegionUnitTest extends GATKBaseTest {
         );
 
         Assert.assertEquals(simpleAnnotatedGenomicRegions.subList(0, gtRegions.size()), gtRegions);
+    }
 
+    @Test
+    public void basicTestWithAllColumnsFile() throws IOException {
+
+        // If no columns of interest are given in a read call, the method will try to load all columns as "interesting".
+        final List<SimpleAnnotatedGenomicRegion> simpleAnnotatedGenomicRegions =
+                SimpleAnnotatedGenomicRegionCollection.create(TEST_FILE, null).getRecords();
+
+        Assert.assertEquals(simpleAnnotatedGenomicRegions.size(), 15);
+        Assert.assertTrue(simpleAnnotatedGenomicRegions.stream()
+                .mapToInt(s -> s.getAnnotations().entrySet().size())
+                .allMatch(i -> i == 101)); // The number of columns in the TEST_FILE (name, learning_SAMPLE_0...99
     }
 
     @Test(dataProvider = "equalsTests")
