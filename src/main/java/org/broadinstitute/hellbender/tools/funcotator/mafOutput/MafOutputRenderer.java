@@ -1,6 +1,8 @@
 package org.broadinstitute.hellbender.tools.funcotator.mafOutput;
 
 import htsjdk.variant.variantcontext.VariantContext;
+import htsjdk.variant.vcf.VCFHeader;
+import htsjdk.variant.vcf.VCFHeaderLine;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.tools.funcotator.DataSourceFuncotationFactory;
 import org.broadinstitute.hellbender.tools.funcotator.Funcotation;
@@ -95,6 +97,16 @@ public class MafOutputRenderer extends OutputRenderer {
      */
     private PrintWriter printWriter;
 
+    /**
+     * Tool header information to go into the header.
+     */
+    private final LinkedHashSet<String> toolHeaderLines;
+
+    /**
+     * Existing header from the input file to preserve in the output.
+     */
+    private final VCFHeader inputFileHeader;
+
     //==================================================================================================================
     // Constructors:
 
@@ -109,9 +121,29 @@ public class MafOutputRenderer extends OutputRenderer {
                              final List<DataSourceFuncotationFactory> dataSources,
                              final LinkedHashMap<String, String> unaccountedForDefaultAnnotations,
                              final LinkedHashMap<String, String> unaccountedForOverrideAnnotations) {
+        this(outputFilePath, dataSources, unaccountedForDefaultAnnotations, unaccountedForOverrideAnnotations, new VCFHeader(Collections.emptySet()), new LinkedHashSet<>());
+    }
 
+    /**
+     * Create a {@link MafOutputRenderer}.
+     * @param outputFilePath {@link Path} to output file (must not be null).
+     * @param dataSources {@link List} of {@link DataSourceFuncotationFactory} to back our annotations (must not be null).
+     * @param unaccountedForDefaultAnnotations {@link LinkedHashMap} of default annotations that must be added.
+     * @param unaccountedForOverrideAnnotations {@link LinkedHashMap} of override annotations that must be added.
+     * @param inputFileHeader {@link VCFHeader} of input VCF file to preserve.
+     * @param toolHeaderLines Lines to add to the header with information about Funcotator.
+     */
+    public MafOutputRenderer(final Path outputFilePath,
+                             final List<DataSourceFuncotationFactory> dataSources,
+                             final LinkedHashMap<String, String> unaccountedForDefaultAnnotations,
+                             final LinkedHashMap<String, String> unaccountedForOverrideAnnotations,
+                             final VCFHeader inputFileHeader,
+                             final Set<String> toolHeaderLines) {
+
+        // Set our internal variables from the input:
         this.outputFilePath = outputFilePath;
-
+        this.toolHeaderLines = new LinkedHashSet<>(toolHeaderLines);
+        this.inputFileHeader = inputFileHeader;
         dataSourceFactories = dataSources;
 
         // Merge the annotations into our manualAnnotations:
@@ -158,7 +190,7 @@ public class MafOutputRenderer extends OutputRenderer {
         //TODO: For this to work correctly you'll need to group funcotations by reference / alternate allele pairs.
 
         if ( ! hasWrittenHeader ) {
-            writeHeader(variant);
+            writeHeader();
         }
 
         // Make sure we only output the variant here if it passed all filters:
@@ -246,17 +278,35 @@ public class MafOutputRenderer extends OutputRenderer {
 
     /**
      * Write the header to the output file.
-     * @param variant A {@link VariantContext} to use to get the extra fields included with this MAF file.
      */
-    protected void writeHeader(final VariantContext variant) {
+    protected void writeHeader() {
         // Write out version:
         writeLine(COMMENT_STRING + "version " + VERSION);
         writeLine(COMMENT_STRING + COMMENT_STRING);
 
+        // Write previous header info:
+        for ( final VCFHeaderLine line : inputFileHeader.getMetaDataInInputOrder() ) {
+            printWriter.write(COMMENT_STRING);
+            printWriter.write(COMMENT_STRING);
+            printWriter.write(" ");
+            writeLine( line.toString() );
+        }
+
+        // Write any default tool header lines:
+        for ( final String line : toolHeaderLines ) {
+            printWriter.write(COMMENT_STRING);
+            printWriter.write(COMMENT_STRING);
+            printWriter.write(" ");
+            writeLine(line);
+        }
+
         // Write tool name and the data sources with versions:
         printWriter.write(COMMENT_STRING);
         printWriter.write(COMMENT_STRING);
+        printWriter.write(" ");
         printWriter.write(" Funcotator ");
+        printWriter.write(Funcotator.VERSION);
+        printWriter.write(" | Date ");
         printWriter.write(new SimpleDateFormat("yyyymmdd'T'hhmmss").format(new Date()));
         for (final DataSourceFuncotationFactory funcotationFactory : dataSourceFactories) {
             printWriter.write(" | ");

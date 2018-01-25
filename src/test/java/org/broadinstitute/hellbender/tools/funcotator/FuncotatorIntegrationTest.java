@@ -2,6 +2,7 @@ package org.broadinstitute.hellbender.tools.funcotator;
 
 import org.broadinstitute.hellbender.CommandLineProgramTest;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
+import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.funcotator.dataSources.xsv.SimpleKeyXsvFuncotationFactory;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -19,23 +20,45 @@ import java.util.List;
  */
 public class FuncotatorIntegrationTest extends CommandLineProgramTest {
 
-    //TODO: Add checks on the output file.
+    //TODO: SUPER IMPORTANT! Add checks on the output file to make sure it's equal to an expected output file!
 
     // Temp directory in which to place output files.
     private static final File tmpOutDir;
 
-    // Whether to output all files to a temporary, ephemeral folder.
+    // Whether to do debug output (i.e. leave output around).
     // This should always be true when checked in.
-    private static final boolean outputToTmpDir = true;
+    private static final boolean doDebugTests = false;
 
     static {
-        if ( outputToTmpDir ) {
+        if ( !doDebugTests ) {
             tmpOutDir = createTempDir("funcotatorTmpFolder");
         }
         else {
             tmpOutDir = new File("funcotatorTmpFolder" + File.separator);
-            tmpOutDir.mkdirs();
+            if ( !tmpOutDir.mkdirs() && !tmpOutDir.exists() ) {
+                throw new GATKException("Error making output folder for test: " + FuncotatorIntegrationTest.class.getName());
+            }
         }
+    }
+
+    //==================================================================================================================
+    // Helper methods to create output files and maybe leave them around to debug the test output.
+
+    private static File getOutputFile(final FuncotatorArgumentDefinitions.OutputFormatType outputFormatType) {
+        return getOutputFile( outputFormatType, "funcotator_tmp_out", outputFormatType.toString().toLowerCase() );
+    }
+
+    private static File getOutputFile(final FuncotatorArgumentDefinitions.OutputFormatType outputFormatType,
+                                      final String outfileBaseName,
+                                      final String outFileExtension) {
+        final File outputFile;
+        if ( !doDebugTests ) {
+            outputFile = createTempFile(tmpOutDir + File.separator + outfileBaseName, "." + outFileExtension);
+        }
+        else {
+            outputFile = new File(tmpOutDir, outfileBaseName + "." + outputFormatType.toString().toLowerCase());
+        }
+        return outputFile;
     }
 
     //==================================================================================================================
@@ -57,7 +80,7 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
     // It will force anyone who changes the outputToTmpDir flag to make it true when they check in this test file.
     @Test
     public void metaTestEnsureTempDirs() {
-        Assert.assertEquals(outputToTmpDir, true);
+        Assert.assertEquals(doDebugTests, false);
     }
 
     @Test(dataProvider = "provideForIntegrationTest")
@@ -69,13 +92,7 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
                                 final SimpleKeyXsvFuncotationFactory.XsvDataKeyType xsvMatchType,
                                 final FuncotatorArgumentDefinitions.OutputFormatType outputFormatType) throws IOException {
 
-        final File outputFile;
-        if ( outputToTmpDir ) {
-            outputFile = createTempFile(tmpOutDir + File.separator + "funcotator_tmp_out", "." + outputFormatType.toString().toLowerCase());
-        }
-        else {
-            outputFile = new File(tmpOutDir, "funcotator_tmp_out." + outputFormatType.toString().toLowerCase());
-        }
+        final File outputFile = getOutputFile(outputFormatType);
 
         final List<String> arguments = new ArrayList<>();
 
@@ -95,18 +112,12 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
         runCommandLine(arguments);
     }
 
-    @Test(enabled = false)
+    @Test(enabled = doDebugTests)
     public void spotCheck() throws IOException {
 
         for ( final FuncotatorArgumentDefinitions.OutputFormatType outFormat : Arrays.asList(FuncotatorArgumentDefinitions.OutputFormatType.VCF, FuncotatorArgumentDefinitions.OutputFormatType.MAF)) {
 
-            final File outputFile;
-            if ( outputToTmpDir ) {
-                outputFile = createTempFile(tmpOutDir + File.separator + "funcotator_tmp_out_spot_check", "." + outFormat.toString().toLowerCase());
-            }
-            else {
-                outputFile = new File(tmpOutDir, "funcotator_tmp_out_spot_check" + "." + outFormat.toString().toLowerCase());
-            }
+            final File outputFile = getOutputFile(outFormat);
 
             final List<String> arguments = new ArrayList<>();
 
@@ -145,13 +156,7 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
 
         final String outFileName = "funcotator_tmp_out_" + xsvMatchType.toString() + "_" + transcriptName + "." + outputFormatType.toString().toLowerCase();
 
-        final File outputFile;
-        if ( outputToTmpDir ) {
-            outputFile = createTempFile(tmpOutDir + File.separator + outFileName.substring(0,outFileName.length()-4), outFileName.substring(outFileName.length()-4));
-        }
-        else {
-            outputFile = new File(tmpOutDir, outFileName);
-        }
+        final File outputFile = getOutputFile( outputFormatType, outFileName.substring(0,outFileName.length()-4), outFileName.substring(outFileName.length()-3) );
 
         final List<String> arguments = new ArrayList<>();
 

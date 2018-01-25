@@ -328,7 +328,9 @@ public class Funcotator extends VariantWalker {
                 outputRenderer = new MafOutputRenderer(outputFile.toPath(),
                         dataSourceFactories,
                         unaccountedForDefaultAnnotations,
-                        unaccountedForOverrideAnnotations);
+                        unaccountedForOverrideAnnotations,
+                        getHeaderForVariants(),
+                        getDefaultToolVCFHeaderLines().stream().map(x -> x.toString()).collect(Collectors.toCollection(LinkedHashSet::new)));
                 break;
             // Default to VCF output:
             default:
