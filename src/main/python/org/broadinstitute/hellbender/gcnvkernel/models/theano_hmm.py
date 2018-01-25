@@ -214,6 +214,13 @@ class TheanoViterbi:
     def __init__(self):
         self._viterbi_theano_func = self._get_compiled_viterbi_theano_func()
 
+    def get_viterbi_path(self,
+                         temperature: float,
+                         log_prior_c: np.ndarray,
+                         log_trans_tcc: np.ndarray,
+                         log_emission_tc: np.ndarray):
+        return self._viterbi_theano_func(temperature, log_prior_c, log_trans_tcc, log_emission_tc)
+
     @th.configparser.change_flags(compute_test_value="ignore")
     def _get_compiled_viterbi_theano_func(self):
         """todo.
@@ -317,6 +324,13 @@ class HMMSegmentationQualityCalculator:
         The initializer requires the emission and transition probabilities, as well as the forward
         and backward tables and the log posterior probability.
     """
+
+    # 10 / ln(10)
+    INV_LN_10_TIMES_10 = 4.342944819032518
+
+    # ln(1/2)
+    LN_HALF = -0.6931471805599453
+
     def __init__(self,
                  log_emission_tc: np.ndarray,
                  log_trans_tcc: np.ndarray,
@@ -349,6 +363,8 @@ class HMMSegmentationQualityCalculator:
 
         self._constrained_path_log_likelihood_theano_func =\
             self._get_compiled_constrained_path_log_likelihood_theano_func()
+
+        self.all_states_set = set(range(self.num_states))
 
     @staticmethod
     def _get_symbolic_constrained_path_log_likelihood(alpha_first_c: tt.dvector,
@@ -409,7 +425,8 @@ class HMMSegmentationQualityCalculator:
         constrained_alpha_first_c = self.alpha_tc[start_index, allowed_states_list]
         constrained_beta_last_c = self.beta_tc[end_index, allowed_states_list]
         if end_index == start_index:  # single-site segment
-            return logsumexp(constrained_alpha_first_c + constrained_beta_last_c) - self.log_data_likelihood
+            log_constrained_data_likelihood: float = logsumexp(constrained_alpha_first_c + constrained_beta_last_c)
+            return log_constrained_data_likelihood - self.log_data_likelihood
         else:
             # calculate the required slices of the log emission and log transition representing
             # paths that only contain the allowed states
@@ -421,8 +438,26 @@ class HMMSegmentationQualityCalculator:
                 constrained_alpha_first_c, constrained_beta_last_c,
                 constrained_log_emission_tc, constrained_log_trans_tcc) - self.log_data_likelihood)
 
-    def get_segment_call_quality(self, start_index: int, end_index: int, call_state: int) -> int:
-        """Calculates the phred-scaled posterior probability that all sites in a segment have the same
+    def get_segment_some_quality(self, start_index: int, end_index: int, call_state: int) -> float:
+        """Calculates the phred-scaled posterior probability that one or more ("some") sites in a segment have
+        the same hidden state ("call").
+
+        Args:
+            start_index: first site index (inclusive)
+            end_index: last site index (inclusive)
+            call_state: segment call state index
+
+        Returns:
+            a phred-scaled probability
+        """
+        assert call_state in self.all_states_set
+        other_states = self.all_states_set.copy()
+        other_states.remove(call_state)
+        all_other_states_log_prob = self.get_log_constrained_posterior_prob(start_index, end_index, other_states)
+        return self.log_prob_to_phred(all_other_states_log_prob, complement=False)
+
+    def get_segment_exact_quality(self, start_index: int, end_index: int, call_state: int) -> float:
+        """Calculates the phred-scaled posterior probability that "all" sites in a segment have the same
         hidden state ("call").
 
         Args:
@@ -433,9 +468,11 @@ class HMMSegmentationQualityCalculator:
         Returns:
             a phred-scaled probability
         """
-        pass
+        assert call_state in self.all_states_set
+        all_called_state_log_prob = self.get_log_constrained_posterior_prob(start_index, end_index, {call_state})
+        return self.log_prob_to_phred(all_called_state_log_prob, complement=True)
 
-    def get_segment_start_quality(self, start_index: int, call_state: int) -> int:
+    def get_segment_start_quality(self, start_index: int, call_state: int) -> float:
         """Calculates the phred-scaled posterior probability that a site marks the start of a segment.
 
         Args:
@@ -445,9 +482,24 @@ class HMMSegmentationQualityCalculator:
         Returns:
             a phred-scaled probability
         """
-        pass
+        assert 0 <= start_index < self.num_sites
+        if start_index == 0:
+            log_prob = self.log_posterior_prob_tc[0, call_state]
+        else:
+            # calculate the probability of all paths that start from other states and end up with the called state
+            all_other_states = self.all_states_set.copy()
+            all_other_states.remove(call_state)
+            all_other_states_list = list(all_other_states)
+            prev_alpha_c = self.alpha_tc[start_index - 1, all_other_states_list]
+            current_beta = self.beta_tc[start_index, call_state]
+            current_log_emission = self.log_emission_tc[start_index, call_state]
+            log_trans_c = self.log_trans_tcc[start_index - 1, all_other_states_list, call_state]
+            log_breakpoint_likelihood = logsumexp(prev_alpha_c + log_trans_c + current_log_emission) + current_beta
+            log_prob = log_breakpoint_likelihood - self.log_data_likelihood
 
-    def get_segment_end_quality(self, end_index: int, call_state: int) -> int:
+        return self.log_prob_to_phred(log_prob, complement=True)
+
+    def get_segment_end_quality(self, end_index: int, call_state: int) -> float:
         """Calculates the phred-scaled posterior probability that a site marks the end of a segment.
 
         Args:
@@ -457,19 +509,36 @@ class HMMSegmentationQualityCalculator:
         Returns:
 
         """
-        pass
+        assert 0 < end_index < self.num_sites
+        if end_index == self.num_sites - 1:
+            log_prob = self.log_posterior_prob_tc[self.num_sites - 1, call_state]
+        else:
+            # calculate the probability of all paths that start from call state and end up with other states
+            all_other_states = self.all_states_set.copy()
+            all_other_states.remove(call_state)
+            all_other_states_list = list(all_other_states)
+            current_alpha = self.alpha_tc[end_index, call_state]
+            next_beta_c = self.beta_tc[end_index + 1, all_other_states_list]
+            next_log_emission_c = self.log_emission_tc[end_index + 1, all_other_states_list]
+            log_trans_c = self.log_trans_tcc[end_index, call_state, all_other_states_list]
+            log_breakpoint_likelihood = logsumexp(current_alpha + log_trans_c + next_log_emission_c + next_beta_c)
+            log_prob = log_breakpoint_likelihood - self.log_data_likelihood
+
+        return self.log_prob_to_phred(log_prob, complement=True)
 
     @staticmethod
-    def log_prob_to_phred(log_prob: float) -> int:
+    def log_prob_to_phred(log_prob: float, complement: bool = False) -> float:
         """Converts probabilities in natural log scale to phred scale.
 
         Args:
             log_prob: a probability in the natural log scale
+            complement: invert the probability
 
         Returns:
             phred-scaled probability
         """
-        pass
+        final_log_prob = log_prob if not complement else HMMSegmentationQualityCalculator.log_prob_complement(log_prob)
+        return -final_log_prob * HMMSegmentationQualityCalculator.INV_LN_10_TIMES_10
 
     @staticmethod
     def log_prob_complement(log_prob: float) -> float:
@@ -481,6 +550,8 @@ class HMMSegmentationQualityCalculator:
         Returns:
             complement of the the probability in the natural log scale
         """
-        pass
-
-
+        log_prob_zero_capped = min(0., log_prob)
+        if log_prob_zero_capped >= HMMSegmentationQualityCalculator.LN_HALF:
+            return np.log(-np.expm1(log_prob_zero_capped))
+        else:
+            return np.log1p(-np.exp(log_prob_zero_capped))
