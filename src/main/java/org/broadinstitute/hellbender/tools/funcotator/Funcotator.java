@@ -212,6 +212,11 @@ public class Funcotator extends VariantWalker {
     private static final PathMatcher configFileMatcher =
             FileSystems.getDefault().getPathMatcher("glob:**/*.config");
 
+    /**
+     * The current version of {@link Funcotator}.
+     */
+    public static final String VERSION = "0.0.2";
+
     //==================================================================================================================
     // Arguments:
 
@@ -293,6 +298,11 @@ public class Funcotator extends VariantWalker {
     //==================================================================================================================
 
     @Override
+    protected String getVersion() {
+        return VERSION;
+    }
+
+    @Override
     public boolean requiresReference() {
         return true;
     }
@@ -326,7 +336,8 @@ public class Funcotator extends VariantWalker {
                         createVCFWriter(outputFile),
                         dataSourceFactories,
                         unaccountedForDefaultAnnotations,
-                        unaccountedForOverrideAnnotations);
+                        unaccountedForOverrideAnnotations,
+                        getDefaultToolVCFHeaderLines());
                 break;
         }
         outputRenderer.open();
@@ -415,7 +426,7 @@ public class Funcotator extends VariantWalker {
 
         // Create a variant context for annotation that has a new contig based on whether we need to overwrite the
         // contig names in the next section.
-        final VariantContextBuilder variantContextBuilderForFixedContigForGencode = new VariantContextBuilder(variant);
+        final VariantContextBuilder variantContextBuilderForFixedContigForDataSources = new VariantContextBuilder(variant);
 
         // Check to see if we need to query with a different reference convention (i.e. "chr1" vs "1").
         if ( allowHg19GencodeContigNamesWithB37 && inputReferenceIsB37 ) {
@@ -423,7 +434,7 @@ public class Funcotator extends VariantWalker {
             final String hg19Contig = FuncotatorUtils.convertB37ContigToHg19Contig( variant.getContig() );
             final SimpleInterval hg19Interval = new SimpleInterval(hg19Contig, variant.getStart(), variant.getEnd());
 
-            variantContextBuilderForFixedContigForGencode.chr(hg19Contig);
+            variantContextBuilderForFixedContigForDataSources.chr(hg19Contig);
 
             // Get our features for the new interval:
             for ( final FeatureInput<? extends Feature> featureInput : manualFeatureInputs ) {
@@ -436,11 +447,11 @@ public class Funcotator extends VariantWalker {
             }
         }
 
+        // Get our VariantContext for annotation:
+        final VariantContext variantContextFixedContigForDataSources = variantContextBuilderForFixedContigForDataSources.make();
+
         // Create a place to keep our funcotations:
         final List<Funcotation> funcotations = new ArrayList<>();
-
-        // Get our VariantContext for annotation:
-        final VariantContext variantContextFixedContigForGencode = variantContextBuilderForFixedContigForGencode.make();
 
         // Annotate with Gencode first:
 
@@ -448,7 +459,7 @@ public class Funcotator extends VariantWalker {
         final List<GencodeFuncotation> gencodeFuncotations = new ArrayList<>();
 
         for ( final GencodeFuncotationFactory factory : gencodeFuncotationFactories ) {
-            final List<Funcotation> funcotationsFromGencodeFactory = factory.createFuncotations(variantContextFixedContigForGencode, referenceContext, featureList);
+            final List<Funcotation> funcotationsFromGencodeFactory = factory.createFuncotations(variantContextFixedContigForDataSources, referenceContext, featureList);
             funcotations.addAll(funcotationsFromGencodeFactory);
             gencodeFuncotations.addAll(
                     funcotationsFromGencodeFactory.stream()
@@ -465,7 +476,7 @@ public class Funcotator extends VariantWalker {
                 continue;
             }
 
-            funcotations.addAll( funcotationFactory.createFuncotations(variant, referenceContext, featureList, gencodeFuncotations) );
+            funcotations.addAll( funcotationFactory.createFuncotations(variantContextFixedContigForDataSources, referenceContext, featureList, gencodeFuncotations) );
         }
 
         outputRenderer.write(variant, funcotations);

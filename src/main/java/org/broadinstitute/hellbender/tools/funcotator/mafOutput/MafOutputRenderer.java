@@ -269,6 +269,9 @@ public class MafOutputRenderer extends OutputRenderer {
         // Write the column headers:
         // TODO: Make sure we only account for the actual columns.  That is, we have a mapping of data sources to known columns then the other cols are appended at the end.  Make sure we don't double-count any of these!
         writeLine( defaultMap.keySet().stream().collect(Collectors.joining("\t")) );
+
+        // Make sure we keep track of the fact that we've now written the header:
+        hasWrittenHeader = true;
     }
 
     /**

@@ -10,6 +10,7 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -25,7 +26,7 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
 
     // Whether to output all files to a temporary, ephemeral folder.
     // This should always be true when checked in.
-    private static final boolean outputToTmpDir = false;
+    private static final boolean outputToTmpDir = true;
 
     static {
         if ( outputToTmpDir ) {
@@ -94,37 +95,43 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
         runCommandLine(arguments);
     }
 
-    @Test(enabled = true)
+    @Test(enabled = false)
     public void spotCheck() throws IOException {
 
-        final File outputFile;
-        if ( outputToTmpDir ) {
-            outputFile = createTempFile(tmpOutDir + File.separator + "funcotator_tmp_out_spot_check", ".vcf");
-        }
-        else {
-            outputFile = new File(tmpOutDir, "funcotator_tmp_out_spot_check.vcf");
-        }
+        for ( final FuncotatorArgumentDefinitions.OutputFormatType outFormat : Arrays.asList(FuncotatorArgumentDefinitions.OutputFormatType.VCF, FuncotatorArgumentDefinitions.OutputFormatType.MAF)) {
 
-        final List<String> arguments = new ArrayList<>();
+            final File outputFile;
+            if ( outputToTmpDir ) {
+                outputFile = createTempFile(tmpOutDir + File.separator + "funcotator_tmp_out_spot_check", "." + outFormat.toString().toLowerCase());
+            }
+            else {
+                outputFile = new File(tmpOutDir, "funcotator_tmp_out_spot_check" + "." + outFormat.toString().toLowerCase());
+            }
 
-        arguments.add("-" + StandardArgumentDefinitions.VARIANT_SHORT_NAME);
+            final List<String> arguments = new ArrayList<>();
+
+            arguments.add("-" + StandardArgumentDefinitions.VARIANT_SHORT_NAME);
+
 //        arguments.add("/Users/jonn/Development/oncotator_testing/BENCHMARK_INPUT.funcotator.vcf");
-        arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.vcf");
+            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.vcf");
 
-        arguments.add("-" + StandardArgumentDefinitions.REFERENCE_SHORT_NAME);
-        arguments.add("/Users/jonn/Development/references/Homo_sapiens_assembly19.fasta");
+            arguments.add("-" + StandardArgumentDefinitions.REFERENCE_SHORT_NAME);
+            arguments.add("/Users/jonn/Development/references/Homo_sapiens_assembly19.fasta");
 
-        arguments.add("--" + FuncotatorArgumentDefinitions.DATA_SOURCES_PATH_LONG_NAME);
-        arguments.add(FuncotatorTestConstants.FUNCOTATOR_DATA_SOURCES_MAIN_FOLDER);
+            arguments.add("--" + FuncotatorArgumentDefinitions.DATA_SOURCES_PATH_LONG_NAME);
+            arguments.add(FuncotatorTestConstants.FUNCOTATOR_DATA_SOURCES_MAIN_FOLDER);
 
-        arguments.add("--" + FuncotatorArgumentDefinitions.REFERENCE_VERSION_LONG_NAME);
-        arguments.add(FuncotatorArgumentDefinitions.ReferenceVersionType.hg19.toString());
-        arguments.add("-" + StandardArgumentDefinitions.OUTPUT_SHORT_NAME);
-        arguments.add(outputFile.getAbsolutePath());
-        arguments.add("-" + FuncotatorArgumentDefinitions.OUTPUT_FORMAT_LONG_NAME);
-        arguments.add(FuncotatorArgumentDefinitions.OutputFormatType.VCF.toString());
+            arguments.add("--" + FuncotatorArgumentDefinitions.ALLOW_HG19_GENCODE_B37_CONTIG_MATCHING_LONG_NAME);
 
-        runCommandLine(arguments);
+            arguments.add("--" + FuncotatorArgumentDefinitions.REFERENCE_VERSION_LONG_NAME);
+            arguments.add(FuncotatorArgumentDefinitions.ReferenceVersionType.hg19.toString());
+            arguments.add("-" + StandardArgumentDefinitions.OUTPUT_SHORT_NAME);
+            arguments.add(outputFile.getAbsolutePath());
+            arguments.add("-" + FuncotatorArgumentDefinitions.OUTPUT_FORMAT_LONG_NAME);
+            arguments.add(outFormat.toString());
+
+            runCommandLine(arguments);
+        }
     }
 
     @Test(dataProvider = "provideForIntegrationTest")
