@@ -55,6 +55,13 @@ public abstract class DataSourceFuncotationFactory implements AutoCloseable {
     //==================================================================================================================
 
     /**
+     * @return A {@link String} containing information about this {@link DataSourceFuncotationFactory}.
+     */
+    public String getInfoString() {
+        return getName() + " " + getVersion();
+    }
+
+    /**
      * Perform cleanup tasks for this {@link DataSourceFuncotationFactory}.
      */
     public void close() {}

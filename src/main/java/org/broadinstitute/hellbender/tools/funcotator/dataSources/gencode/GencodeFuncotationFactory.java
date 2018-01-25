@@ -187,6 +187,11 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
     // Override Methods:
 
     @Override
+    public String getInfoString() {
+        return getName() + " " + getVersion() + " " + transcriptSelectionMode.toString();
+    }
+
+    @Override
     public void close() {
         transcriptFastaReferenceDataSource.close();
     }

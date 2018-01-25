@@ -4,10 +4,7 @@ import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.vcf.VCFHeader;
 import htsjdk.variant.vcf.VCFHeaderLine;
 import org.broadinstitute.hellbender.exceptions.UserException;
-import org.broadinstitute.hellbender.tools.funcotator.DataSourceFuncotationFactory;
-import org.broadinstitute.hellbender.tools.funcotator.Funcotation;
-import org.broadinstitute.hellbender.tools.funcotator.Funcotator;
-import org.broadinstitute.hellbender.tools.funcotator.OutputRenderer;
+import org.broadinstitute.hellbender.tools.funcotator.*;
 import org.broadinstitute.hellbender.tools.funcotator.dataSources.gencode.GencodeFuncotation;
 import org.broadinstitute.hellbender.utils.Utils;
 
@@ -81,11 +78,6 @@ public class MafOutputRenderer extends OutputRenderer {
 
     /** Flag to see if the header has been written to the output file yet. */
     private boolean hasWrittenHeader = false;
-
-    /**
-     * {@link List} of the {@link DataSourceFuncotationFactory} objects that are being used in this run of {@link Funcotator}.
-     */
-    private final List<DataSourceFuncotationFactory> dataSourceFactories;
 
     /**
      * {@link Path} to the resulting MAF output file for this {@link MafOutputRenderer}.
@@ -308,12 +300,7 @@ public class MafOutputRenderer extends OutputRenderer {
         printWriter.write(Funcotator.VERSION);
         printWriter.write(" | Date ");
         printWriter.write(new SimpleDateFormat("yyyymmdd'T'hhmmss").format(new Date()));
-        for (final DataSourceFuncotationFactory funcotationFactory : dataSourceFactories) {
-            printWriter.write(" | ");
-            printWriter.write(funcotationFactory.getName());
-            printWriter.write(" ");
-            printWriter.write(funcotationFactory.getVersion());
-        }
+        printWriter.write(getDataSourceInfoString());
         writeLine("");
 
         // Write the column headers:

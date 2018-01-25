@@ -42,7 +42,6 @@ public class VcfOutputRenderer extends OutputRenderer {
 
     private final VariantContextWriter vcfWriter;
     private final VCFHeader existingHeader;
-    private final List<DataSourceFuncotationFactory> dataSourceFactories;
 
     private final LinkedHashSet<VCFHeaderLine> defaultToolVcfHeaderLines;
 
@@ -89,10 +88,7 @@ public class VcfOutputRenderer extends OutputRenderer {
 
     @Override
     public void open() {
-        final VCFHeader newHeader = createVCFHeader(existingHeader,
-                                                    dataSourceFactories,
-                                                    manualAnnotations,
-                                                    defaultToolVcfHeaderLines);
+        final VCFHeader newHeader = createVCFHeader();
         vcfWriter.writeHeader(newHeader);
     }
 
@@ -135,16 +131,10 @@ public class VcfOutputRenderer extends OutputRenderer {
     /**
      * Create a header for a VCF file.
      * Uses {@link VcfOutputRenderer#dataSourceFactories} to get a list of fields to report producing (preserving their order).
-     * Includes fields from the given annotation maps.
-     * @param existingHeader An existing {@link VCFHeader} from which to replicate fields in this new file.
-     * @param dataSourceFactories A {@link List} of {@link DataSourceFuncotationFactory} objects from which to pull field names.
-     * @param manualAnnotations A {@link LinkedHashMap} of manually specified values for annotations to include in the VCF output.
+     * Includes fields from the manual annotation maps.
      * @return The {@link VCFHeader} object with relevant information for {@link Funcotator}.
      */
-    private static VCFHeader createVCFHeader(final VCFHeader existingHeader,
-                                             final List<DataSourceFuncotationFactory> dataSourceFactories,
-                                             final LinkedHashMap<String, String> manualAnnotations,
-                                             final LinkedHashSet<VCFHeaderLine> defaultToolVcfHeaderLines) {
+    private VCFHeader createVCFHeader() {
 
         final Set<VCFHeaderLine> headerLines = new LinkedHashSet<>();
 
@@ -156,7 +146,7 @@ public class VcfOutputRenderer extends OutputRenderer {
 
         // Add in the lines about Funcotations:
         headerLines.addAll(defaultToolVcfHeaderLines);
-        headerLines.add(new VCFHeaderLine("Funcotator Version", Funcotator.VERSION));
+        headerLines.add(new VCFHeaderLine("Funcotator Version", Funcotator.VERSION + " | " + getDataSourceInfoString()));
         headerLines.add(new VCFInfoHeaderLine(FUNCOTATOR_VCF_FIELD_NAME, VCFHeaderLineCount.A,
                 VCFHeaderLineType.String, "Functional annotation from the Funcotator tool.  Funcotation fields are: " +
                 manualAnnotationFields + HEADER_LISTED_FIELD_DELIMITER + dataSourceFields)
