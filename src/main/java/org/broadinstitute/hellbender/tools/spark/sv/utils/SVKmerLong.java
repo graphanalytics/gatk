@@ -104,6 +104,13 @@ public class SVKmerLong extends SVKmer implements Comparable<SVKmerLong>  {
         return new SVKmerLong(newV1, newV2);
     }
 
+    public boolean isCanonical( final int kSize ) {
+        Utils.validateArg( (kSize & 1) != 0, "Kmer length must be odd to canonicalize.");
+        // for odd-size kmers, the high bit of the middle base is in least significant position in valHigh.
+        // test its value by ANDing with 1.  if it's zero the middle base is A or C and we're canonical.
+        return (valHigh & 1L) == 0;
+    }
+
     /**
      * Returns a SVKmerLong that is a canonical representation of this one.
      * An odd-K SVKmerLong is in canonical form if its middle base is A or C.
