@@ -29,7 +29,7 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
         final List<FastqRead> reads = SVFastqUtils.readFastqFile(fastqFile);
         final int kSize = 63;
         final int minQ = 10;
-        final int minKCount = 5;
+        final int minKCount = 4;
 
         // kmerize each read, counting the observations of each kmer.
         // trim each read at the first base having a quality less than minQ
@@ -52,6 +52,8 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
 
         // ignore kmers that appear less than minKCount times
         kmerCounts.entrySet().removeIf(entry -> entry.getValue() < minKCount);
+
+        // build 61-mer adjacency map from 63-mers
         final Map<SVKmerLong, int[]> kmerAdjacencyMap = new HashMap<>(SVUtils.hashMapCapacity(kmerCounts.size()));
         kmerCounts.forEach((kmer, value) -> {
             final SVKmerLong kkk = kmer.removeFirstAndLastBase(kSize);
@@ -70,29 +72,39 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
                 if ( predCount > 0 ) {
                     final SVKmerLong predecessor = kmer.predecessor(base, kSize2);
                     final SVKmerLong canonicalPredecessor = predecessor.canonical(kSize2);
-                    if ( !kmerAdjacencyMap.containsKey(canonicalPredecessor) ) {
+                    final int idx;
+                    if ( predecessor.equals(canonicalPredecessor) ) { // if predecessor is in canonical form
+                        idx = kmer.lastBase().ordinal() + 4;
+                    }
+                    else {
+                        idx = kmer.lastBase().complement().ordinal();
+                    }
+                    final int[] oldCounts = kmerAdjacencyMap.get(canonicalPredecessor);
+                    if ( oldCounts == null ) {
                         final int[] newCounts = new int[8];
-                        if ( predecessor.equals(canonicalPredecessor) ) { // if predecessor is in canonical form
-                            newCounts[kmer.lastBase().ordinal() + 4] = predCount;
-                        }
-                        else {
-                            newCounts[kmer.lastBase().complement().ordinal()] = predCount;
-                        }
+                        newCounts[idx] = predCount;
                         sourcesAndSinks.add(new Tuple2<>(canonicalPredecessor, newCounts));
+                    } else if ( oldCounts[idx] == 0 ) {
+                        oldCounts[idx] = predCount;
                     }
                 }
                 final int succCount = counts[base.ordinal() + 4];
                 if ( succCount > 0 ) {
                     final SVKmerLong successor = kmer.successor(base, kSize2);
                     final SVKmerLong canonicalSuccessor = successor.canonical(kSize2);
-                    if ( !kmerAdjacencyMap.containsKey(canonicalSuccessor) ) {
+                    final int idx;
+                    if ( successor.equals(canonicalSuccessor) ) { // if successor is in canonical form
+                        idx = kmer.firstBase(kSize2).ordinal();
+                    } else {
+                        idx = kmer.firstBase(kSize2).complement().ordinal() + 4;
+                    }
+                    final int[] oldCounts = kmerAdjacencyMap.get(canonicalSuccessor);
+                    if ( oldCounts == null ) {
                         final int[] newCounts = new int[8];
-                        if ( successor.equals(canonicalSuccessor) ) { // if successor is in canonical form
-                            newCounts[kmer.firstBase(kSize2).ordinal()] = succCount;
-                        } else {
-                            newCounts[4 + kmer.firstBase(kSize2).complement().ordinal()] = succCount;
-                        }
+                        newCounts[idx] = succCount;
                         sourcesAndSinks.add(new Tuple2<>(canonicalSuccessor, newCounts));
+                    } else if ( oldCounts[idx] == 0 ) {
+                        oldCounts[idx] = succCount;
                     }
                 }
             }
@@ -114,22 +126,31 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
 
         // build contigs
         final List<String> contigs = new ArrayList<>();
+        final Map<SVKmerLong, Integer> contigEnds = new HashMap<>();
         kmerAdjacencyMap.forEach( (kmer, counts) -> {
-            final SVKmerLong predecessor = getSolePredecessor(kmer, kSize2, counts);
-            if ( predecessor == null || getSuccessorCount(predecessor, kSize2, kmerAdjacencyMap) > 1 ) {
-                buildContig(kmer, kSize2, counts, kmerAdjacencyMap, contigs);
-            } else {
-                final SVKmerLong successor = getSoleSuccessor(kmer, kSize2, counts);
-                if ( successor == null || getPredecessorCount(successor, kSize2, kmerAdjacencyMap) > 1 ) {
-                    buildContig(kmer.reverseComplement(kSize2), kSize2, counts, kmerAdjacencyMap, contigs);
+            if ( !contigEnds.containsKey(kmer) ) {
+                final Integer contigId = contigs.size();
+                contigEnds.put(kmer, contigId);
+                final SVKmerLong predecessor = getSolePredecessor(kmer, kSize2, counts);
+                if (predecessor == null || getSuccessorCount(predecessor, kSize2, kmerAdjacencyMap) > 1) {
+                    final SVKmerLong lastKmer = buildContig(kmer, kSize2, counts, kmerAdjacencyMap, contigs);
+                    contigEnds.put(lastKmer.canonical(kSize2), contigId);
+                } else {
+                    final SVKmerLong successor = getSoleSuccessor(kmer, kSize2, counts);
+                    if (successor == null || getPredecessorCount(successor, kSize2, kmerAdjacencyMap) > 1) {
+                        final SVKmerLong lastKmer =
+                                buildContig(kmer.reverseComplement(kSize2), kSize2, counts, kmerAdjacencyMap, contigs);
+                        contigEnds.put(lastKmer.canonical(kSize2), contigId);
+                    }
                 }
             }
         });
 
         // dump contigs
         int contigId = 0;
+        contigs.sort(Comparator.comparingInt(String::length));
         for ( final String contig : contigs ) {
-            System.out.println(">contig"+contigId++);
+            System.out.println(">contig" + contigId++ + " len=" + contig.length());
             System.out.println(contig);
         }
 
@@ -181,7 +202,6 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
         if (!kmer.isCanonical(kSize)) {
             return getPredecessorCount(kmer.reverseComplement(kSize), kSize, kmerAdjacencyMap);
         }
-        final int[] counts = kmerAdjacencyMap.get(kmer);
         return getSuccessorCount(kmerAdjacencyMap.get(kmer));
     }
 
@@ -189,16 +209,19 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
         return (counts[4] > 0 ? 1 : 0) + (counts[5] > 0 ? 1 : 0) + (counts[6] > 0 ? 1 : 0) + (counts[7] > 0 ? 1 : 0);
     }
 
-    private static void buildContig( final SVKmerLong kmerArg, final int kSize, final int[] countsArg,
+    private static SVKmerLong buildContig( final SVKmerLong kmerArg, final int kSize, final int[] countsArg,
                                      final Map<SVKmerLong, int[]> kmerAdjacencyMap, final List<String> contigs ) {
         final StringBuilder sb = new StringBuilder(kmerArg.toString(kSize));
+        SVKmerLong lastKmer = kmerArg;
         SVKmerLong kmer = kmerArg;
         int[] counts = countsArg;
         while ( (kmer = getSoleSuccessor(kmer, kSize, counts)) != null ) {
             counts = kmerAdjacencyMap.get(kmer.canonical(kSize));
-            if ( getPredecessorCount(counts) != 1 ) break;
+            if ( (kmer.isCanonical(kSize) ? getPredecessorCount(counts) : getSuccessorCount(counts)) != 1 ) break;
             sb.append(kmer.lastBase().toString());
+            lastKmer = kmer;
         }
         contigs.add(sb.toString());
+        return lastKmer;
     }
 }
