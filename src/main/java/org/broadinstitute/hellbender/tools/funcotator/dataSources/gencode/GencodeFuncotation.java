@@ -1,5 +1,6 @@
 package org.broadinstitute.hellbender.tools.funcotator.dataSources.gencode;
 
+import htsjdk.variant.variantcontext.Allele;
 import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.tools.funcotator.Funcotation;
@@ -154,6 +155,11 @@ public class GencodeFuncotation implements Funcotation {
     }
 
     //==================================================================================================================
+
+    @Override
+    public Allele getAltAllele() {
+        return Allele.create(tumorSeqAllele2.getBytes(), false);
+    }
 
     @Override
     public String serializeToVcfString() {

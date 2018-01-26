@@ -456,7 +456,6 @@ public class Funcotator extends VariantWalker {
         final List<Funcotation> funcotations = new ArrayList<>();
 
         // Annotate with Gencode first:
-
         // Create a list of GencodeFuncotation to use for other Data Sources:
         final List<GencodeFuncotation> gencodeFuncotations = new ArrayList<>();
 

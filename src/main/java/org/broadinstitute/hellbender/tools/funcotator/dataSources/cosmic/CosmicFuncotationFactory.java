@@ -2,6 +2,7 @@ package org.broadinstitute.hellbender.tools.funcotator.dataSources.cosmic;
 
 import com.google.common.annotations.VisibleForTesting;
 import htsjdk.tribble.Feature;
+import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.VariantContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -248,14 +249,17 @@ public class CosmicFuncotationFactory extends DataSourceFuncotationFactory {
             }
         }
 
-        // Add our tally for this variant:
-        outputFuncotations.add(
-                new TableFuncotation(
-                        new ArrayList<>(supportedFields),
-                        new ArrayList<>(Collections.singletonList(String.valueOf(numOverlappingMutations))),
-                        name
-                )
-        );
+        // Add our tally for all alternate alleles in this variant:
+        for ( final Allele altAllele : variant.getAlternateAlleles() ) {
+            outputFuncotations.add(
+                    new TableFuncotation(
+                            new ArrayList<>(supportedFields),
+                            new ArrayList<>(Collections.singletonList(String.valueOf(numOverlappingMutations))),
+                            altAllele,
+                            name
+                    )
+            );
+        }
 
         setOverrideValuesInFuncotations(outputFuncotations);
 

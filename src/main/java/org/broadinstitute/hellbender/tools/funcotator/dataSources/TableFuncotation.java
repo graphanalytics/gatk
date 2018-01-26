@@ -1,5 +1,6 @@
 package org.broadinstitute.hellbender.tools.funcotator.dataSources;
 
+import htsjdk.variant.variantcontext.Allele;
 import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.tools.funcotator.Funcotation;
@@ -37,10 +38,13 @@ public class TableFuncotation implements Funcotation {
      */
     private LinkedHashMap<String, String> fieldMap;
 
+    /** The alternate {@link Allele} associated with this {@link TableFuncotation} */
+    private Allele altAllele;
+
     //==================================================================================================================
     // Constructors:
 
-    public TableFuncotation(final List<String> fieldNames, final List<String> fieldValues, final String dataSourceName ) {
+    public TableFuncotation(final List<String> fieldNames, final List<String> fieldValues, final Allele altAllele, final String dataSourceName ) {
         if ( fieldNames.size() != fieldValues.size() ) {
             throw new UserException.BadInput("Field names and Field values are of different lengths!  This must not be!");
         }
@@ -50,10 +54,11 @@ public class TableFuncotation implements Funcotation {
             fieldMap.put(fieldNames.get(i), fieldValues.get(i));
         }
 
+        this.altAllele = altAllele;
         this.dataSourceName = dataSourceName;
     }
 
-    public TableFuncotation(final XsvTableFeature xsvTableFeature, final String dataSourceName) {
+    public TableFuncotation(final XsvTableFeature xsvTableFeature, final Allele altAllele, final String dataSourceName) {
 
         final List<String> keys = xsvTableFeature.getHeaderWithoutLocationColuns();
         final List<String> values = xsvTableFeature.getValuesWithoutLocationColumns();
@@ -63,11 +68,17 @@ public class TableFuncotation implements Funcotation {
             fieldMap.put(keys.get(i), values.get(i));
         }
 
+        this.altAllele = altAllele;
         this.dataSourceName = dataSourceName;
     }
 
     //==================================================================================================================
     // Override Methods:
+
+    @Override
+    public Allele getAltAllele() {
+        return altAllele;
+    }
 
     @Override
     public String getDataSourceName() {
@@ -112,20 +123,29 @@ public class TableFuncotation implements Funcotation {
 
         final TableFuncotation that = (TableFuncotation) o;
 
-        return fieldMap != null ? fieldMap.equals(that.fieldMap) : that.fieldMap == null;
+        if ( dataSourceName != null ? !dataSourceName.equals(that.dataSourceName) : that.dataSourceName != null )
+            return false;
+        if ( fieldMap != null ? !fieldMap.equals(that.fieldMap) : that.fieldMap != null ) return false;
+        return altAllele != null ? altAllele.equals(that.altAllele) : that.altAllele == null;
     }
 
     @Override
     public int hashCode() {
-        return fieldMap != null ? fieldMap.hashCode() : 0;
+        int result = dataSourceName != null ? dataSourceName.hashCode() : 0;
+        result = 31 * result + (fieldMap != null ? fieldMap.hashCode() : 0);
+        result = 31 * result + (altAllele != null ? altAllele.hashCode() : 0);
+        return result;
     }
 
     @Override
     public String toString() {
         return "TableFuncotation{" +
-                "fieldMap={" + fieldMap.keySet().stream().map(k -> k + ":" + fieldMap.get(k)).collect(Collectors.joining(" , ")) + '}' +
+                "dataSourceName='" + dataSourceName + '\'' +
+                ", fieldMap={" + fieldMap.keySet().stream().map(k -> k + ":" + fieldMap.get(k)).collect(Collectors.joining(" , ")) + '}' +
+                ", altAllele=" + altAllele +
                 '}';
     }
+
 
     //==================================================================================================================
     // Static Methods:

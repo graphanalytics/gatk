@@ -1,5 +1,6 @@
 package org.broadinstitute.hellbender.tools.funcotator.vcfOutput;
 
+import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.variantcontext.writer.VariantContextWriter;
@@ -9,7 +10,10 @@ import org.broadinstitute.hellbender.tools.funcotator.Funcotation;
 import org.broadinstitute.hellbender.tools.funcotator.Funcotator;
 import org.broadinstitute.hellbender.tools.funcotator.OutputRenderer;
 
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -108,13 +112,24 @@ public class VcfOutputRenderer extends OutputRenderer {
         // Get the old VCF Annotation field and append the new information to it:
         final Object existingAnnotation = variant.getAttribute(FUNCOTATOR_VCF_FIELD_NAME, null);
         if ( existingAnnotation != null) {
+            // TODO: This is WRONG!  You need to check for multiple alleles and if there are, you need to make sure the funcotations get grouped by allele properly!
             funcotatorAnnotationStringBuilder.append( existingAnnotation.toString() );
             funcotatorAnnotationStringBuilder.append( ',' );
         }
 
-        funcotatorAnnotationStringBuilder.append(
-                funcotations.stream().map(f -> f.serializeToVcfString(manualAnnotationSerializedString)).collect(Collectors.joining(","))
-        );
+        // Go through each allele and add it to the writer separately:
+        for ( final Allele altAllele : variant.getAlternateAlleles() ) {
+            funcotatorAnnotationStringBuilder.append(
+                    funcotations.stream()
+                            .filter(f -> f.getAltAllele().equals(altAllele) )
+                            .map(f -> f.serializeToVcfString(manualAnnotationSerializedString))
+                            .collect(Collectors.joining(FIELD_DELIMITER))
+            );
+            funcotatorAnnotationStringBuilder.append(",");
+        }
+
+        // We have a trailing "," - we need to remove it:
+        funcotatorAnnotationStringBuilder.deleteCharAt(funcotatorAnnotationStringBuilder.length()-1);
 
         // Add our new annotation:
         variantContextOutputBuilder.attribute(FUNCOTATOR_VCF_FIELD_NAME, funcotatorAnnotationStringBuilder.toString());

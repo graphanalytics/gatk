@@ -1,6 +1,7 @@
 package org.broadinstitute.hellbender.tools.funcotator.dataSources.xsv;
 
 import htsjdk.tribble.Feature;
+import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.VariantContext;
 import org.broadinstitute.hellbender.engine.ReferenceContext;
 import org.broadinstitute.hellbender.exceptions.GATKException;
@@ -184,8 +185,10 @@ public class SimpleKeyXsvFuncotationFactory extends DataSourceFuncotationFactory
             // Get our annotations:
             final List<String> annotations = annotationMap.get( key );
             if ( annotations != null ) {
-                // Add our annotations to the list:
-                outputFuncotations.add( new TableFuncotation(annotationColumnNames, annotations, name) );
+                // Create 1 annotation for each alt allele and add our annotations to the list:
+                for ( final Allele altAllele : variant.getAlternateAlleles() ) {
+                    outputFuncotations.add(new TableFuncotation(annotationColumnNames, annotations, altAllele, name));
+                }
             }
         }
 

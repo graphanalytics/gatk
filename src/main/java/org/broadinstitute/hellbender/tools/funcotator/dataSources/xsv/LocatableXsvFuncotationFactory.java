@@ -2,6 +2,7 @@ package org.broadinstitute.hellbender.tools.funcotator.dataSources.xsv;
 
 import com.google.common.annotations.VisibleForTesting;
 import htsjdk.tribble.Feature;
+import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.VariantContext;
 import org.broadinstitute.hellbender.engine.ReferenceContext;
 import org.broadinstitute.hellbender.exceptions.GATKException;
@@ -92,7 +93,10 @@ public class LocatableXsvFuncotationFactory extends DataSourceFuncotationFactory
             for ( final Feature feature : featureList ) {
                 // Get the kind of feature we want here:
                 if ( (feature != null) && XsvTableFeature.class.isAssignableFrom(feature.getClass()) ) {
-                    outputFuncotations.add( new TableFuncotation((XsvTableFeature) feature, name) );
+                    // Now we create one funcotation for each Alternate allele:
+                    for ( final Allele altAllele : variant.getAlternateAlleles() ) {
+                        outputFuncotations.add(new TableFuncotation((XsvTableFeature) feature, altAllele, name));
+                    }
                 }
             }
         }

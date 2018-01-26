@@ -138,6 +138,7 @@ public class SimpleKeyXsvFuncotationFactoryUnitTest extends GATKBaseTest {
                                         new TableFuncotation(
                                                 removeHelper(headerRowTable.get(startingHeaderRow), keyColumn),
                                                 removeHelper(dataTable.get(startingHeaderRow+1), keyColumn),
+                                                Allele.create("A", false),
                                                 "TestFuncotation_" + String.valueOf(keyColumn) + "_" + String.valueOf(startingHeaderRow)
                                         )
                                 )
@@ -164,6 +165,7 @@ public class SimpleKeyXsvFuncotationFactoryUnitTest extends GATKBaseTest {
                                         new TableFuncotation(
                                                 removeHelper(headerRowTable.get(startingHeaderRow), keyColumn),
                                                 removeHelper(dataTable.get(startingHeaderRow+1), keyColumn),
+                                                Allele.create("A", false),
                                                 "TestFuncotation_" + String.valueOf(keyColumn) + "_" + String.valueOf(startingHeaderRow)
                                         )
                                 )

@@ -11,7 +11,6 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -115,22 +114,28 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
     @Test(enabled = doDebugTests)
     public void spotCheck() throws IOException {
 
-        for ( final FuncotatorArgumentDefinitions.OutputFormatType outFormat : Arrays.asList(FuncotatorArgumentDefinitions.OutputFormatType.VCF, FuncotatorArgumentDefinitions.OutputFormatType.MAF)) {
+        final List<FuncotatorArgumentDefinitions.OutputFormatType> outFormatList = new ArrayList<>();
+        outFormatList.add(FuncotatorArgumentDefinitions.OutputFormatType.VCF);
+        outFormatList.add(FuncotatorArgumentDefinitions.OutputFormatType.MAF);
 
-            final File outputFile = getOutputFile(outFormat);
+        for ( final FuncotatorArgumentDefinitions.OutputFormatType outFormat : outFormatList) {
+
+            final File outputFile = getOutputFile(outFormat, "funcotator_tmp_out_spot_check", outFormat.toString().toLowerCase());
 
             final List<String> arguments = new ArrayList<>();
 
             arguments.add("-" + StandardArgumentDefinitions.VARIANT_SHORT_NAME);
 
 //        arguments.add("/Users/jonn/Development/oncotator_testing/BENCHMARK_INPUT.funcotator.vcf");
-            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.vcf");
+//            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.vcf");
+            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.oneRecord.vcf");
 
             arguments.add("-" + StandardArgumentDefinitions.REFERENCE_SHORT_NAME);
             arguments.add("/Users/jonn/Development/references/Homo_sapiens_assembly19.fasta");
 
             arguments.add("--" + FuncotatorArgumentDefinitions.DATA_SOURCES_PATH_LONG_NAME);
-            arguments.add(FuncotatorTestConstants.FUNCOTATOR_DATA_SOURCES_MAIN_FOLDER);
+//            arguments.add(FuncotatorTestConstants.FUNCOTATOR_DATA_SOURCES_MAIN_FOLDER);
+            arguments.add("/Users/jonn/Development/funcotator_dataSources.v1.0.20180105");
 
             arguments.add("--" + FuncotatorArgumentDefinitions.ALLOW_HG19_GENCODE_B37_CONTIG_MATCHING_LONG_NAME);
 

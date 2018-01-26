@@ -1,11 +1,14 @@
 package org.broadinstitute.hellbender.tools.funcotator.mafOutput;
 
+import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.vcf.VCFHeader;
 import htsjdk.variant.vcf.VCFHeaderLine;
 import org.broadinstitute.hellbender.exceptions.UserException;
-import org.broadinstitute.hellbender.tools.funcotator.*;
-import org.broadinstitute.hellbender.tools.funcotator.dataSources.gencode.GencodeFuncotation;
+import org.broadinstitute.hellbender.tools.funcotator.DataSourceFuncotationFactory;
+import org.broadinstitute.hellbender.tools.funcotator.Funcotation;
+import org.broadinstitute.hellbender.tools.funcotator.Funcotator;
+import org.broadinstitute.hellbender.tools.funcotator.OutputRenderer;
 import org.broadinstitute.hellbender.utils.Utils;
 
 import java.io.IOException;
@@ -179,8 +182,6 @@ public class MafOutputRenderer extends OutputRenderer {
     @Override
     public void write(final VariantContext variant, final List<Funcotation> funcotations) {
 
-        //TODO: For this to work correctly you'll need to group funcotations by reference / alternate allele pairs.
-
         if ( ! hasWrittenHeader ) {
             writeHeader();
         }
@@ -191,47 +192,50 @@ public class MafOutputRenderer extends OutputRenderer {
             return;
         }
 
-        // Create our output maps:
-        final LinkedHashMap<String, Object> outputMap = new LinkedHashMap<>(defaultMap);
-        final LinkedHashMap<String, Object> extraFieldOutputMap = new LinkedHashMap<>();
+        // Loop through each alt allele in our variant:
+        for ( final Allele altAllele : variant.getAlternateAlleles() ) {
 
-        // Separate the funcotations into Gencode and Other:
-        final List<GencodeFuncotation> gencodeFuncotations = new ArrayList<>(1);
-        final List<Funcotation> otherFuncotations = new ArrayList<>(funcotations.size());
-        for ( final Funcotation funcotation : funcotations ) {
-            // Add all the fields from the other funcotations into the extra field output:
-            for ( final String field : funcotation.getFieldNames() ) {
-                setField(extraFieldOutputMap, field, funcotation.getField(field) );
-            }
-        }
+            // Create our output maps:
+            final LinkedHashMap<String, Object> outputMap = new LinkedHashMap<>(defaultMap);
+            final LinkedHashMap<String, Object> extraFieldOutputMap = new LinkedHashMap<>();
 
-        // Set values for unused fields:
-        outputMap.put("Score", UNUSED_STRING);
-        outputMap.put("BAM_File", UNUSED_STRING);
-
-        // Go through all output fields and see if any of the names in the value list are in our extraFieldOutputMap.
-        // For any that match, we remove them from our extraFieldOutputMap and add them to the outputMap with the
-        // correct key.
-        for ( final Map.Entry<String, List<String>> entry : outputFieldNameMap.entrySet() ) {
-            for ( final String fieldName : entry.getValue() ) {
-                if ( extraFieldOutputMap.containsKey(fieldName) ) {
-                    outputMap.put( entry.getKey(), extraFieldOutputMap.remove(fieldName) );
-                    break;
+            // Get our funcotations for this allele and add them to the output maps:
+            for ( final Funcotation funcotation : funcotations ) {
+                if ( funcotation.getAltAllele().equals(altAllele) ) {
+                    // Add all the fields from the other funcotations into the extra field output:
+                    for ( final String field : funcotation.getFieldNames() ) {
+                        setField(extraFieldOutputMap, field, funcotation.getField(field));
+                    }
                 }
             }
+
+            // Set values for unused fields:
+            outputMap.put("Score", UNUSED_STRING);
+            outputMap.put("BAM_File", UNUSED_STRING);
+
+            // Go through all output fields and see if any of the names in the value list are in our extraFieldOutputMap.
+            // For any that match, we remove them from our extraFieldOutputMap and add them to the outputMap with the
+            // correct key.
+            for ( final Map.Entry<String, List<String>> entry : outputFieldNameMap.entrySet() ) {
+                for ( final String fieldName : entry.getValue() ) {
+                    if ( extraFieldOutputMap.containsKey(fieldName) ) {
+                        outputMap.put(entry.getKey(), extraFieldOutputMap.remove(fieldName));
+                        break;
+                    }
+                }
+            }
+
+            // Merge our output maps together:
+            outputMap.putAll(extraFieldOutputMap);
+
+            // Write the output:
+            writeLine(
+                    outputMap.entrySet().stream()
+                            .map(e -> e.getValue())
+                            .map(Object::toString)
+                            .collect(Collectors.joining("\t"))
+            );
         }
-
-        // Merge our output maps together:
-        outputMap.putAll( extraFieldOutputMap );
-
-        // Write the output:
-        writeLine(
-                outputMap.entrySet().stream()
-                        .map(e -> e.getValue())
-                        .map(Object::toString)
-                        .collect(Collectors.joining("\t"))
-        );
-
     }
 
 
