@@ -116,7 +116,7 @@ public final class AssemblyContigAlignmentSignatureClassifier {
 
         // split between the case where both alignments has unique ref span or not
         final Tuple2<JavaRDD<AssemblyContigWithFineTunedAlignments>, JavaRDD<AssemblyContigWithFineTunedAlignments>> hasFullyContainedRefSpanOrNot =
-                RDDUtils.split(preprocessedContigs, AssemblyContigWithFineTunedAlignments::hasIncompletePictureFromTwoAlignments, false);
+                RDDUtils.split(contigsWithOnlyOneBestConfigAnd2AI, AssemblyContigWithFineTunedAlignments::hasIncompletePictureFromTwoAlignments, false);
         contigsByRawTypes.put(RawTypes.Incomplete, hasFullyContainedRefSpanOrNot._1);
 
         // split between same chromosome mapping or not
