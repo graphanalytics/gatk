@@ -231,9 +231,28 @@ if [ "${QUIET}" != "Y" ] && [ "${GATK_GIT_HASH}" != "${CURRENT_GIT_HASH}" ]; the
         esac
     done
 fi
+
+# there's the possibility that the jar to be used was built with un-committed changes
+# but tagged with a git hash that is present in multiple branches, 
+# this makes $GIT_BRANCH a space-delimited string hence may mess with arg parsing
+GIT_STATUS=$(git diff-index --quiet HEAD -- || echo "untracked")
+if [[ ${GIT_STATUS} ]]; then
+    read -p "There's uncommitted changes in your current branch, this might cause problems; want to proceed anyway? (yes/no/cancel)" yn
+    case $yn in
+        [Yy]*)  ;;
+        [Nn]*)  exit
+                ;;
+        [Cc]*)  exit
+                ;;
+            *)  echo "Please answer yes, no, or cancel."
+                ;;
+    esac
+fi
+
 # set output directory to datetime-git branch-git hash stamped folder
 OUTPUT_DIR="/results/$(date "+%Y-%m-%d_%H.%M.%S")-${GIT_BRANCH}-${GATK_GIT_HASH}"
 
+echo
 
 # call create_cluster, using default_init
 while true; do
