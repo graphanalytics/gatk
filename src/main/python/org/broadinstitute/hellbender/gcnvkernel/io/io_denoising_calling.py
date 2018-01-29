@@ -183,9 +183,15 @@ class SampleDenoisingAndCallingPosteriorsExporter:
                 io_consts.default_copy_number_log_emission_tsv_filename,
                 extra_comment_lines=sample_name_comment_line)
 
-            # export baseline state
+            # export baseline copy numbers
+            baseline_copy_number_t = self.denoising_calling_workspace.baseline_copy_number_sj[
+                si, self.denoising_calling_workspace.t_to_j_map.get_value(borrow=True)]
+            io_commons.write_ndarray_to_tsv(
+                os.path.join(sample_posterior_path, io_consts.default_baseline_copy_number_tsv_filename),
+                baseline_copy_number_t)
 
 
+# todo import log copy number emission
 class SampleDenoisingAndCallingPosteriorsImporter:
     """Imports sample-specific model parameters and associated workspace variables from disk."""
     def __init__(self,
