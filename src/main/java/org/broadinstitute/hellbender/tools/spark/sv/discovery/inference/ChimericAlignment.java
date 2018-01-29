@@ -483,10 +483,11 @@ public class ChimericAlignment {
         if (intervalOne.mapQual < mapQThresholdInclusive || intervalTwo.mapQual < mapQThresholdInclusive)
             return false;
 
-        final int overlap = AlignmentInterval.overlapOnContig(intervalOne, intervalTwo);
-
-        return Math.min(intervalOne.getSizeOnRead() - overlap, intervalTwo.getSizeOnRead() - overlap)
-                >= alignmentLengthThresholdInclusive;
+//        final int overlap = AlignmentInterval.overlapOnContig(intervalOne, intervalTwo);
+//
+//        return Math.min(intervalOne.getSizeOnRead() - overlap, intervalTwo.getSizeOnRead() - overlap)
+//                >= alignmentLengthThresholdInclusive;
+        return Math.min(intervalOne.getSizeOnRead(), intervalTwo.getSizeOnRead()) >= alignmentLengthThresholdInclusive;
     }
 
     /**
