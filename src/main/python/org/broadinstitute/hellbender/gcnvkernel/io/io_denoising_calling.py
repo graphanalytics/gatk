@@ -96,11 +96,15 @@ class DenoisingModelImporter:
 class SampleDenoisingAndCallingPosteriorsExporter:
     """Exports sample-specific model parameters and associated workspace variables to disk."""
     def __init__(self,
+                 denoising_config: DenoisingModelConfig,
+                 calling_config: CopyNumberCallingConfig,
                  denoising_calling_workspace: DenoisingCallingWorkspace,
                  denoising_model: DenoisingModel,
                  denoising_model_approx: pm.MeanField,
                  output_path: str):
         io_commons.assert_output_path_writable(output_path)
+        self.denoising_config = denoising_config
+        self.calling_config = calling_config
         self.denoising_calling_workspace = denoising_calling_workspace
         self.denoising_model = denoising_model
         self.denoising_model_approx = denoising_model_approx
@@ -133,6 +137,20 @@ class SampleDenoisingAndCallingPosteriorsExporter:
             f.write(sample_name + '\n')
 
     def __call__(self):
+        # export gcnvkernel version
+        io_commons.export_gcnvkernel_version(self.output_path)
+
+        # export denoising config
+        io_commons.export_dict_to_json_file(
+            os.path.join(self.output_path, io_consts.default_denoising_config_json_filename),
+            self.denoising_config.__dict__, set())
+
+        # export calling config
+        io_commons.export_dict_to_json_file(
+            os.path.join(self.output_path, io_consts.default_calling_config_json_filename),
+            self.calling_config.__dict__, set())
+
+        # extract meanfield parameters
         approx_var_set, approx_mu_map, approx_std_map = io_commons.extract_meanfield_posterior_parameters(
             self.denoising_model_approx)
 
@@ -164,6 +182,8 @@ class SampleDenoisingAndCallingPosteriorsExporter:
                 self.denoising_calling_workspace.log_copy_number_emission_stc.get_value(borrow=True)[si, ...],
                 io_consts.default_copy_number_log_emission_tsv_filename,
                 extra_comment_lines=sample_name_comment_line)
+
+            # export baseline state
 
 
 class SampleDenoisingAndCallingPosteriorsImporter:

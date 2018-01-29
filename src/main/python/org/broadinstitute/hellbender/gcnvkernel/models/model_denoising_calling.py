@@ -3,7 +3,7 @@ import logging
 import argparse
 import inspect
 from abc import abstractmethod
-from typing import List, Tuple, Set, Dict
+from typing import List, Tuple, Set, Dict, Optional
 
 import numpy as np
 import pymc3 as pm
@@ -346,7 +346,7 @@ class DenoisingCallingWorkspace:
                  n_st: np.ndarray,
                  sample_names: List[str],
                  sample_metadata_collection: SampleMetadataCollection,
-                 posterior_initializer: PosteriorInitializer = TrivialPosteriorInitializer):
+                 posterior_initializer: Optional[PosteriorInitializer] = TrivialPosteriorInitializer):
         self.denoising_config = denoising_config
         self.calling_config = calling_config
         self.interval_list = interval_list
@@ -399,15 +399,15 @@ class DenoisingCallingWorkspace:
                                               borrow=config.borrow_numpy)
 
         # copy number log posterior and derived quantities (to be initialized by `PosteriorInitializer`)
-        self.log_q_c_stc: types.TensorSharedVariable = None
+        self.log_q_c_stc: Optional[types.TensorSharedVariable] = None
 
         # latest MAP estimate of integer copy number (to be initialized and periodically updated by
         #   `DenoisingCallingWorkspace.update_auxiliary_vars)
-        self.c_map_st: types.TensorSharedVariable = None
+        self.c_map_st: Optional[types.TensorSharedVariable] = None
 
         # latest bitmask of CNV-active intervals (to be initialized and periodically updated by
         #   `DenoisingCallingWorkspace.update_auxiliary_vars if q_c_expectation_mode == 'hybrid')
-        self.active_class_bitmask_t: types.TensorSharedVariable = None
+        self.active_class_bitmask_t: Optional[types.TensorSharedVariable] = None
 
         # copy number emission log posterior
         log_copy_number_emission_stc = np.zeros(
@@ -416,11 +416,49 @@ class DenoisingCallingWorkspace:
             log_copy_number_emission_stc, name="log_copy_number_emission_stc", borrow=config.borrow_numpy)
 
         # class log posterior (to be initialized by `PosteriorInitializer`)
-        self.log_q_tau_tk: types.TensorSharedVariable = None
+        self.log_q_tau_tk: Optional[types.TensorSharedVariable] = None
 
         # class emission log posterior
+        # (to be initialize by calling `initialize_copy_number_class_inference_vars`)
+        self.log_class_emission_tk: Optional[types.TensorSharedVariable] = None
+
+        # class assignment prior probabilities
+        # (to be initialize by calling `initialize_copy_number_class_inference_vars`)
+        self.class_probs_k: Optional[types.TensorSharedVariable] = None
+
+        # class Markov chain log prior (initialized here and remains constant throughout)
+        # (to be initialize by calling `initialize_copy_number_class_inference_vars`)
+        self.log_prior_k: Optional[np.ndarray] = None
+
+        # class Markov chain log transition (initialized here and remains constant throughout)
+        # (to be initialize by calling `initialize_copy_number_class_inference_vars`)
+        self.log_trans_tkk: Optional[np.ndarray] = None
+
+        # GC bias factors
+        # (to be initialize by calling `initialize_bias_inference_vars`)
+        self.W_gc_tg: Optional[tst.SparseConstant] = None
+
+        # auxiliary data structures for hybrid q_c_expectation_mode calculation
+        # (to be initialize by calling `initialize_bias_inference_vars`)
+        self.interval_neighbor_index_list: Optional[List[List[int]]] = None
+
+        # initialize posterior
+        if posterior_initializer is not None:
+            posterior_initializer.initialize_posterior(denoising_config, calling_config, self)
+            self.initialize_bias_inference_vars()
+            self.update_auxiliary_vars()
+
+    def initialize_copy_number_class_inference_vars(self):
+        """Initializes members required for copy number class inference (must be called in the cohort mode).
+        The following members are initialized:
+            - `DenoisingCallingWorkspace.log_class_emission_tk`
+            - `DenoisingCallingWorkspace.class_probs_k`
+            - `DenoisingCallingWorkspace.log_prior_k`
+            - `DenoisingCallingWorkspace.log_trans_tkk`
+        """
+        # class emission log posterior
         log_class_emission_tk = np.zeros(
-            (self.num_intervals, calling_config.num_copy_number_classes), dtype=types.floatX)
+            (self.num_intervals, self.calling_config.num_copy_number_classes), dtype=types.floatX)
         self.log_class_emission_tk: types.TensorSharedVariable = th.shared(
             log_class_emission_tk, name="log_class_emission_tk", borrow=True)
 
@@ -428,7 +466,8 @@ class DenoisingCallingWorkspace:
         # Note:
         #   The first class is the CNV-silent class (highly biased toward the baseline copy number)
         #   The second class is a CNV-active class (all copy number states are equally probable)
-        class_probs_k = np.asarray([1.0 - calling_config.p_active, calling_config.p_active], dtype=types.floatX)
+        class_probs_k = np.asarray([1.0 - self.calling_config.p_active, self.calling_config.p_active],
+                                   dtype=types.floatX)
         self.class_probs_k: types.TensorSharedVariable = th.shared(
             class_probs_k, name='class_probs_k', borrow=config.borrow_numpy)
 
@@ -438,35 +477,29 @@ class DenoisingCallingWorkspace:
         # class Markov chain log transition (initialized here and remains constant throughout)
         self.log_trans_tkk: np.ndarray = self._get_log_trans_tkk(
             self.dist_t.get_value(borrow=True),
-            calling_config.class_coherence_length,
-            calling_config.num_copy_number_classes,
+            self.calling_config.class_coherence_length,
+            self.calling_config.num_copy_number_classes,
             class_probs_k)
 
-        # GC bias factors
-        self.W_gc_tg: tst.SparseConstant = None
-        if denoising_config.enable_explicit_gc_bias_modeling:
+    def initialize_bias_inference_vars(self):
+        """Initializes `DenoisingCallingWorkspace.W_gc_tg` and `DenoisingCallingWorkspace.interval_neighbor_index_list`
+        if required by the model configuration."""
+        if self.denoising_config.enable_explicit_gc_bias_modeling:
             self.W_gc_tg = self._create_sparse_gc_bin_tensor_tg(
-                self.interval_list, denoising_config.num_gc_bins)
+                self.interval_list, self.denoising_config.num_gc_bins)
 
-        # auxiliary data structures for hybrid q_c_expectation_mode calculation
-        if denoising_config.q_c_expectation_mode == 'hybrid':
+        if self.denoising_config.q_c_expectation_mode == 'hybrid':
             self.interval_neighbor_index_list = self._get_interval_neighbor_index_list(
-                interval_list, denoising_config.active_class_padding_hybrid_mode)
+                self.interval_list, self.denoising_config.active_class_padding_hybrid_mode)
         else:
             self.interval_neighbor_index_list = None
 
-        # initialize posterior
-        posterior_initializer.initialize_posterior(denoising_config, calling_config, self)
-
-        # update auxiliary variables
-        self.update_auxiliary_vars()
-
     def update_auxiliary_vars(self):
-        """ Updates `DenoisingCallingWorkspace.c_map_st' and `DenoisingCallingWorkspace.active_class_bitmask_t`."""
+        """Updates `DenoisingCallingWorkspace.c_map_st' and `DenoisingCallingWorkspace.active_class_bitmask_t`."""
+        # MAP copy number call
         if self.c_map_st is None:
             c_map_st = np.zeros((self.num_samples, self.num_intervals), dtype=types.small_uint)
             self.c_map_st = th.shared(c_map_st, name="c_map_st", borrow=config.borrow_numpy)
-        # MAP copy number call
         self.c_map_st.set_value(
             np.argmax(self.log_q_c_stc.get_value(borrow=True), axis=2).astype(types.small_uint),
             borrow=config.borrow_numpy)
@@ -479,7 +512,7 @@ class DenoisingCallingWorkspace:
                     active_class_bitmask_t, name="active_class_bitmask_t", borrow=config.borrow_numpy)
 
             # bitmask for intervals of which the probability of being in the silent class is below 0.5
-            active_class_bitmask_t: np.ndarray = \
+            active_class_bitmask_t: np.ndarray =\
                 self.log_q_tau_tk.get_value(borrow=True)[:, 0] < -np.log(2)
             padded_active_class_bitmask_t = np.zeros_like(active_class_bitmask_t)
             for ti, neighbor_index_list in enumerate(self.interval_neighbor_index_list):
@@ -906,7 +939,7 @@ class HHMMClassAndCopyNumberBasicCaller:
         self.temperature = temperature
 
         # generate the 2-class inventory of copy number priors (CNV-silent, CNV-active) for all samples
-        # according to their respective contig ploidies
+        # according to their respective germline contig ploidies
         pi_sjkc = np.zeros((shared_workspace.num_samples,
                             shared_workspace.num_contigs,
                             calling_config.num_copy_number_classes,
