@@ -1,7 +1,8 @@
 import numpy as np
 from abc import abstractmethod
-from typing import Dict
+from typing import Dict, Optional
 from copy import deepcopy
+from .sequence import SAMSequenceDictionary
 
 
 class Interval:
@@ -10,16 +11,20 @@ class Interval:
     Note:
         Equality test and hashing is based on get_key() which excludes all annotations.
     """
-    def __init__(self, contig: str, start: int, end: int):
+    def __init__(self, contig: str, start: int, end: int, seq_dict: Optional[SAMSequenceDictionary]):
         assert end >= start, "Interval end point must be greater or equal to its start point"
         self.contig = str(contig)
         self.start = int(start)
         self.end = int(end)
+        self.seq_dict = seq_dict
         self.annotations = dict()
         self._hash = hash(self.get_key())
 
     def get_key(self):
         return self.contig, self.start, self.end
+
+    def get_cmp_key(self):
+        return self.start, self.end
 
     def add_annotation(self, key: str, annotation: 'IntervalAnnotation'):
         self.annotations[key] = annotation
@@ -46,8 +51,44 @@ class Interval:
         else:
             return np.abs(self.get_midpoint() - other.get_midpoint())
 
-    def __eq__(self, other):
+    def assert_seq_dict_available(self):
+        assert self.seq_dict is not None, "The interval {0} does not have SAM sequence dictionary. Cannot perform " \
+                                          "rich comparisons.".format(self)
+
+    @property
+    def contig_index(self) -> int:
+        self.assert_seq_dict_available()
+        return self.seq_dict.index(self.contig)
+
+    def __eq__(self, other: 'Interval'):
         return self.get_key() == other.get_key()
+
+    def __ne__(self, other: 'Interval'):
+        return self.get_key() != other.get_key()
+
+    def __lt__(self, other: 'Interval'):
+        if self.contig_index == other.contig_index:
+            return self.get_cmp_key() < other.get_cmp_key()
+        else:
+            return self.contig_index < other.contig_index
+
+    def __le__(self, other: 'Interval'):
+        if self.contig_index == other.contig_index:
+            return self.get_cmp_key() <= other.get_cmp_key()
+        else:
+            return self.contig_index < other.contig_index
+
+    def __gt__(self, other: 'Interval'):
+        if self.contig_index == other.contig_index:
+            return self.get_cmp_key() > other.get_cmp_key()
+        else:
+            return self.contig_index > other.contig_index
+
+    def __ge__(self, other: 'Interval'):
+        if self.contig_index == other.contig_index:
+            return self.get_cmp_key() >= other.get_cmp_key()
+        else:
+            return self.contig_index > other.contig_index
 
     def __hash__(self):
         return self._hash
