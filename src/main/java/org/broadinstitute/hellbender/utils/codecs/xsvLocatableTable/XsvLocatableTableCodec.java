@@ -213,13 +213,16 @@ public final class XsvLocatableTableCodec extends AsciiFeatureCodec<XsvTableFeat
                 // Add the data source name to teh start of each header row,
                 // then add those rows to the header object.
                 header = Arrays.stream(line.split(delimiter))
-                        .map(x -> StringUtils.isEmpty(dataSourceName) ? x : dataSourceName + "_" + x)
+                        .map(x -> determinePrefixForHeader() + x)
                         .collect(Collectors.toCollection(ArrayList::new));
                 headerToIndex = IntStream.range(0, header.size()).boxed()
                         .collect(Collectors.toMap(i-> header.get(i), Function.identity()));
-                finalContigColumn = NumberUtils.isNumber(inputContigColumn) ? header.get(Integer.valueOf(inputContigColumn)) : inputContigColumn;
-                finalStartColumn = StringUtils.isNumeric(inputStartColumn) ? header.get(Integer.valueOf(inputStartColumn)) : inputStartColumn;
-                finalEndColumn = StringUtils.isNumeric(inputEndColumn) ? header.get(Integer.valueOf(inputEndColumn)) : inputEndColumn;
+                finalContigColumn = NumberUtils.isNumber(inputContigColumn) ? header.get(Integer.valueOf(inputContigColumn))
+                        : determinePrefixForHeader() + inputContigColumn;
+                finalStartColumn = StringUtils.isNumeric(inputStartColumn) ? header.get(Integer.valueOf(inputStartColumn))
+                        : determinePrefixForHeader() + inputStartColumn;
+                finalEndColumn = StringUtils.isNumeric(inputEndColumn) ? header.get(Integer.valueOf(inputEndColumn))
+                        : determinePrefixForHeader() + inputEndColumn;
 
                 locatableColumns = Lists.newArrayList(finalContigColumn, finalStartColumn, finalEndColumn);
 
@@ -236,6 +239,10 @@ public final class XsvLocatableTableCodec extends AsciiFeatureCodec<XsvTableFeat
         }
 
         throw new UserException.BadInput("Given file is malformed - does not contain a header!");
+    }
+
+    private String determinePrefixForHeader() {
+        return (StringUtils.isEmpty(dataSourceName) ? "" : dataSourceName + "_");
     }
 
     //==================================================================================================================
