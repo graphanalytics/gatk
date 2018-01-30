@@ -129,7 +129,8 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
 //        arguments.add("/Users/jonn/Development/oncotator_testing/BENCHMARK_INPUT.funcotator.vcf");
 //            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.vcf");
             arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.oneRecord.vcf");
-
+//            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.badRecord.vcf");
+//
             arguments.add("-" + StandardArgumentDefinitions.REFERENCE_SHORT_NAME);
             arguments.add("/Users/jonn/Development/references/Homo_sapiens_assembly19.fasta");
 

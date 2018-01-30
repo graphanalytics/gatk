@@ -390,6 +390,7 @@ public class FuncotatorUtilsUnitTest extends GATKBaseTest {
                 { new SimpleInterval("chr1", 99, 99),   exons_backward, Strand.NEGATIVE,  1 },
                 { new SimpleInterval("chr1", 50, 67),   exons_backward, Strand.NEGATIVE, -1 },
                 { new SimpleInterval("chr1", 67, 75),   exons_backward, Strand.NEGATIVE, 15 },
+
         };
     }
 

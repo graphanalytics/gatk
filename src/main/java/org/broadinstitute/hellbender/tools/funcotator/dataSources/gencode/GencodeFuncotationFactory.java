@@ -572,6 +572,8 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
             // Find the sub-feature of transcript that contains our variant:
             final GencodeGtfFeature containingSubfeature = getContainingGtfSubfeature(variant, transcript);
 
+            // Make sure the start and end of the variant are both in the transcript:
+
             // Determine what kind of region we're in and handle it in it's own way:
             if ( containingSubfeature == null ) {
                 // We have an IGR variant
@@ -1076,6 +1078,7 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
         GencodeGtfFeature subFeature = null;
 
         if ( transcript.contains(variant) ) {
+
             if ( transcript.getUtrs().size() > 0 ) {
                 for ( final GencodeGtfUTRFeature utr : transcript.getUtrs() ) {
                     if ( utr.overlaps(variant) ) {
@@ -1089,7 +1092,8 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
             // where this overlaps something more meaningful.
             // For example, see HG19 - chr19:8959608
             for (final GencodeGtfExonFeature exon : transcript.getExons()) {
-                if ((exon.getCds() != null) && (exon.getCds().overlaps(variant))) {
+                // TODO: It would be really nice if you could make this work for the OVERLAPS method not just the CONTAINS method.  This is in here for issue #4307.
+                if ((exon.getCds() != null) && (exon.getCds().contains(variant))) {
                     subFeature = exon;
                     determinedRegionAlready = true;
                 }

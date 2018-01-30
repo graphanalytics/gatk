@@ -9,11 +9,9 @@ import org.broadinstitute.hellbender.tools.funcotator.DataSourceFuncotationFacto
 import org.broadinstitute.hellbender.tools.funcotator.Funcotation;
 import org.broadinstitute.hellbender.tools.funcotator.Funcotator;
 import org.broadinstitute.hellbender.tools.funcotator.OutputRenderer;
+import org.broadinstitute.hellbender.utils.Utils;
 
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -111,14 +109,25 @@ public class VcfOutputRenderer extends OutputRenderer {
 
         // Get the old VCF Annotation field and append the new information to it:
         final Object existingAnnotation = variant.getAttribute(FUNCOTATOR_VCF_FIELD_NAME, null);
+        final List<String> existingAlleleAnnotations;
         if ( existingAnnotation != null) {
-            // TODO: This is WRONG!  You need to check for multiple alleles and if there are, you need to make sure the funcotations get grouped by allele properly!
-            funcotatorAnnotationStringBuilder.append( existingAnnotation.toString() );
-            funcotatorAnnotationStringBuilder.append( ',' );
+            existingAlleleAnnotations = Utils.split(existingAnnotation.toString(), ',');
+        }
+        else {
+            existingAlleleAnnotations = Collections.emptyList();
         }
 
         // Go through each allele and add it to the writer separately:
-        for ( final Allele altAllele : variant.getAlternateAlleles() ) {
+        final List<Allele> alternateAlleles = variant.getAlternateAlleles();
+        for ( int alleleIndex = 0; alleleIndex < alternateAlleles.size() ; ++alleleIndex ) {
+
+            final Allele altAllele = alternateAlleles.get(alleleIndex);
+
+            if ( alleleIndex < existingAlleleAnnotations.size() ) {
+                funcotatorAnnotationStringBuilder.append( existingAlleleAnnotations.get(alleleIndex) );
+                funcotatorAnnotationStringBuilder.append(FIELD_DELIMITER);
+            }
+
             funcotatorAnnotationStringBuilder.append(
                     funcotations.stream()
                             .filter(f -> f.getAltAllele().equals(altAllele) )
