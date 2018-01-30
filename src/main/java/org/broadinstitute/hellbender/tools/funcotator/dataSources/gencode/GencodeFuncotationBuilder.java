@@ -287,4 +287,14 @@ public class GencodeFuncotationBuilder {
         gencodeFuncotation.setReferenceContext( referenceContext );
         return this;
     }
+
+    /**
+     * Set the Version {@link String} in the {@link GencodeFuncotation}.
+     * @param version The {@link String} containing the Version for the {@link GencodeFuncotation}.
+     * @return {@code this} {@link GencodeFuncotationBuilder}
+     */
+    public GencodeFuncotationBuilder setVersion(final String version) {
+        gencodeFuncotation.setVersion( version );
+        return this;
+    }
  }

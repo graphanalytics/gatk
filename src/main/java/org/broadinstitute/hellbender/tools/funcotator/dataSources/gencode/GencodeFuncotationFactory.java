@@ -201,8 +201,6 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
         return DATA_SOURCE_NAME;
     }
 
-    //TODO: Add in version getter/setter:
-
     @Override
     public LinkedHashSet<String> getSupportedFuncotationFields() {
 
@@ -563,6 +561,9 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
             // Get GC Content:
             gencodeFuncotationBuilder.setGcContent( calculateGcContent( reference, gcContentWindowSizeBases ) );
 
+            // Set our version:
+            gencodeFuncotationBuilder.setVersion(version);
+
             gencodeFuncotation = gencodeFuncotationBuilder.build();
         }
         else {
@@ -661,6 +662,9 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
 
         // Set the reference context with the bases from the sequence comparison:
         gencodeFuncotationBuilder.setReferenceContext( sequenceComparison.getReferenceBases() );
+
+        // Set our version:
+        gencodeFuncotationBuilder.setVersion(version);
 
         return gencodeFuncotationBuilder.build();
     }
@@ -962,6 +966,9 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
             gencodeFuncotationBuilder.setVariantClassification(GencodeFuncotation.VariantClassification.THREE_PRIME_UTR);
         }
 
+        // Set our version:
+        gencodeFuncotationBuilder.setVersion(version);
+
         return gencodeFuncotationBuilder.build();
     }
 
@@ -975,12 +982,12 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
      * @param referenceContext The {@link ReferenceContext} in which the given variant appears.
      * @return A {@link GencodeFuncotation} containing information about the given {@code variant} given the corresponding {@code transcript}.
      */
-    private static GencodeFuncotation createIntronFuncotation(final VariantContext variant,
-                                                              final Allele altAllele,
-                                                              final ReferenceContext reference,
-                                                              final GencodeGtfGeneFeature gtfFeature,
-                                                              final GencodeGtfTranscriptFeature transcript,
-                                                              final ReferenceContext referenceContext) {
+    private GencodeFuncotation createIntronFuncotation(final VariantContext variant,
+                                                       final Allele altAllele,
+                                                       final ReferenceContext reference,
+                                                       final GencodeGtfGeneFeature gtfFeature,
+                                                       final GencodeGtfTranscriptFeature transcript,
+                                                       final ReferenceContext referenceContext) {
 
         // Setup the "trivial" fields of the gencodeFuncotation:
         final GencodeFuncotationBuilder gencodeFuncotationBuilder = createGencodeFuncotationBuilderWithTrivialFieldsPopulated(variant, altAllele, gtfFeature, transcript);
@@ -1034,6 +1041,9 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
                     FuncotatorUtils.createSpliceSiteCodonChange(variant.getStart(), spliceSiteExon.getExonNumber(), spliceSiteExon.getStart(), spliceSiteExon.getEnd(), strand, offsetIndelAdjustment)
             );
         }
+
+        // Set our version:
+        gencodeFuncotationBuilder.setVersion(version);
 
         return gencodeFuncotationBuilder.build();
     }
@@ -1481,7 +1491,7 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
      * @param reference The {@link ReferenceContext} against which to compare the given {@link VariantContext}.
      * @return A list of IGR annotations for the given variant.
      */
-    private static List<GencodeFuncotation> createIgrFuncotations(final VariantContext variant, final ReferenceContext reference) {
+    private List<GencodeFuncotation> createIgrFuncotations(final VariantContext variant, final ReferenceContext reference) {
         // for each allele, create an annotation.
 
         final List<GencodeFuncotation> gencodeFuncotations = new ArrayList<>();
@@ -1532,7 +1542,7 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
      * @param reference The {@link ReferenceContext} in which the given {@link Allele}s appear.
      * @return An IGR funcotation for the given allele.
      */
-    private static GencodeFuncotation createIgrFuncotation(final Allele refAllele,
+    private GencodeFuncotation createIgrFuncotation(final Allele refAllele,
                                                            final Allele altAllele,
                                                            final ReferenceContext reference){
 
@@ -1550,6 +1560,9 @@ public class GencodeFuncotationFactory extends DataSourceFuncotationFactory {
 
         // Set our reference context in the the FuncotatonBuilder:
         funcotationBuilder.setReferenceContext( referenceBases );
+
+        // Set our version:
+        funcotationBuilder.setVersion(version);
 
         return funcotationBuilder.build();
     }
