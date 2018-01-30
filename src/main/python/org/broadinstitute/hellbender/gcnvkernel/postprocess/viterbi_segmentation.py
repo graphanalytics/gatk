@@ -3,8 +3,11 @@ from ..structs.metadata import SampleMetadataCollection
 import logging
 import os
 import numpy as np
+import theano as th
+from .. import types
 from ..io import io_consts, io_commons, io_denoising_calling, io_intervals_and_counts
 from ..structs.interval import Interval
+from ..structs.metadata import IntervalListMetadata
 from ..models.model_denoising_calling import DenoisingModelConfig, CopyNumberCallingConfig,\
     DenoisingCallingWorkspace
 
@@ -24,6 +27,7 @@ class ViterbiSegmentationEngine:
                  sample_metadata_collection: SampleMetadataCollection):
         self._validate_args(scattered_model_paths, scattered_calls_paths, sample_metadata_collection)
         self.scattered_calls_paths = scattered_calls_paths
+        self.sample_metadata_collection = sample_metadata_collection
         self.denoising_config = self._get_denoising_config(scattered_model_paths[0])
         self.calling_config = self._get_calling_config(scattered_model_paths[0])
 
@@ -34,11 +38,58 @@ class ViterbiSegmentationEngine:
             self.interval_list += self._get_interval_list_from_model_shard(model_path)
             log_q_tau_tk_shards += (self._get_log_q_tau_tk_from_model_shard(model_path),)
         self.log_q_tau_tk = np.concatenate(log_q_tau_tk_shards, axis=0)
+
+        # sample names
         self.sample_names = self._get_sample_names_from_calls_shard(scattered_calls_paths[0])
         self.num_samples = len(self.sample_names)
 
-    def generate_workspace_for_sample_index(self, sample_index) -> DenoisingCallingWorkspace:
-        assert sample_index < self.num_samples, "Sample index is out of range."
+        # interval list metadata
+        self.interval_list_metadata: IntervalListMetadata = IntervalListMetadata(self.interval_list)
+
+    def _generate_workspace_for_viterbi(self,
+                                        sample_index: int,
+                                        contig: str,
+                                        full_copy_number_log_emission_tc: np.ndarray) -> DenoisingCallingWorkspace:
+        """todo.
+
+        Note:
+            The read count array will be set to 0 in the workspace. It is not need in the Viterbi
+            segmentation process, however, the initializer requires it.
+
+        Args:
+            sample_index:
+            contig:
+            full_copy_number_log_emission_tc:
+
+        Returns:
+            an instance of `DenoisingCallingWorkspace` containing intervals for the specified contig,
+            the associated class posterior probabilities, and log emission probabilities
+        """
+        assert 0 <= sample_index < self.num_samples, "Sample index is out of range."
+
+        contig_interval_indices = self.interval_list_metadata.contig_interval_indices[contig]
+
+        single_sample_workspace = DenoisingCallingWorkspace(
+            self.denoising_config,
+            self.calling_config,
+            [self.interval_list[ti] for ti in contig_interval_indices],
+            np.zeros((1, len(contig_interval_indices)), dtype=types.med_uint),
+            [self.sample_names[sample_index]],
+            self.sample_metadata_collection,
+            posterior_initializer=None)
+
+        # set copy number class log posteriors
+        single_sample_workspace.log_q_tau_tk = th.shared(
+            self.log_q_tau_tk[contig_interval_indices, :], name='log_q_tau_tk')
+
+        # set emission probabilities
+        single_sample_workspace.log_copy_number_emission_stc.set_value(
+            full_copy_number_log_emission_tc[np.newaxis, contig_interval_indices, :])
+
+        return single_sample_workspace
+
+    def perform_viterbi_segmentation_for_single_sample(self,
+                                                       sample_index: int):
         pass
 
     @staticmethod
