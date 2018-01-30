@@ -2,6 +2,7 @@ import collections
 import logging
 import argparse
 import inspect
+import json
 from abc import abstractmethod
 from typing import List, Tuple, Set, Dict, Optional
 
@@ -167,7 +168,7 @@ class DenoisingModelConfig:
                               help="Disable novel bias factor discovery CNV-active regions")
 
     @staticmethod
-    def from_args_dict(args_dict: Dict):
+    def from_args_dict(args_dict: Dict) -> 'DenoisingModelConfig':
         """Initialize an instance of `DenoisingModelConfig` from a dictionary of arguments.
 
         Args:
@@ -180,6 +181,12 @@ class DenoisingModelConfig:
         relevant_keys = set(inspect.getfullargspec(DenoisingModelConfig.__init__).args)
         relevant_kwargs = {k: v for k, v in args_dict.items() if k in relevant_keys}
         return DenoisingModelConfig(**relevant_kwargs)
+
+    @staticmethod
+    def from_json_file(json_file: str) -> 'DenoisingModelConfig':
+        with open(json_file, 'r') as fp:
+            imported_denoising_config_dict = json.load(fp)
+        return DenoisingModelConfig.from_args_dict(imported_denoising_config_dict)
 
 
 class CopyNumberCallingConfig:
@@ -292,6 +299,12 @@ class CopyNumberCallingConfig:
         relevant_keys = set(inspect.getfullargspec(CopyNumberCallingConfig.__init__).args)
         relevant_kwargs = {k: v for k, v in args_dict.items() if k in relevant_keys}
         return CopyNumberCallingConfig(**relevant_kwargs)
+
+    @staticmethod
+    def from_json_file(json_file: str) -> 'CopyNumberCallingConfig':
+        with open(json_file, 'r') as fp:
+            imported_calling_config_dict = json.load(fp)
+        return CopyNumberCallingConfig.from_args_dict(imported_calling_config_dict)
 
 
 class PosteriorInitializer:
