@@ -26,7 +26,7 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
 
     // Whether to do debug output (i.e. leave output around).
     // This should always be true when checked in.
-    private static final boolean doDebugTests = true;
+    private static final boolean doDebugTests = false;
 
     static {
         if ( !doDebugTests ) {
@@ -113,11 +113,16 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
     @Test(enabled = doDebugTests)
     public void spotCheck() throws IOException {
 
+        long startTime = 0, endTime = 0;
+        final long overallStartTime = System.nanoTime();
+
         final List<FuncotatorArgumentDefinitions.OutputFormatType> outFormatList = new ArrayList<>();
-        outFormatList.add(FuncotatorArgumentDefinitions.OutputFormatType.VCF);
+//        outFormatList.add(FuncotatorArgumentDefinitions.OutputFormatType.VCF);
         outFormatList.add(FuncotatorArgumentDefinitions.OutputFormatType.MAF);
 
         for ( final FuncotatorArgumentDefinitions.OutputFormatType outFormat : outFormatList) {
+
+            startTime = System.nanoTime();
 
             final File outputFile;
             if ( outFormat == FuncotatorArgumentDefinitions.OutputFormatType.VCF ) {
@@ -132,8 +137,8 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
             arguments.add("-" + StandardArgumentDefinitions.VARIANT_SHORT_NAME);
 
 //        arguments.add("/Users/jonn/Development/oncotator_testing/BENCHMARK_INPUT.funcotator.vcf");
-//            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.vcf");
-            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.oneRecord.vcf");
+            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.vcf");
+//            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.oneRecord.vcf");
 //            arguments.add("/Users/jonn/Development/M2_01115161-TA1-filtered.badRecord.vcf");
 //
             arguments.add("-" + StandardArgumentDefinitions.REFERENCE_SHORT_NAME);
@@ -145,6 +150,41 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
 
             arguments.add("--" + FuncotatorArgumentDefinitions.ALLOW_HG19_GENCODE_B37_CONTIG_MATCHING_LONG_NAME);
 
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME);
+            arguments.add("Center:The Broad Institute");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME);
+			arguments.add("dbSNP_RS:0");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("dbSNP_Val_Status:No Value");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Tumor_Sample_Barcode:01100110011");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Matched_Norm_Sample_Barcode:1001");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Match_Norm_Seq_Allele1:No Match");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Match_Norm_Seq_Allele2:Abnormal");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Tumor_Validation_Allele1:Cancer Maybe");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Tumor_Validation_Allele2:Maybe Cancer");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Match_Norm_Validation_Allele1:Everythings fine here");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Match_Norm_Validation_Allele2:How are you?");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Verification_Status:Unverified");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Validation_Status:Totally Valid.  100%  Definitely.");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Mutation_Status:Mutated");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Sequencing_Phase:90 Degrees");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Sequence_Source:Mammal");
+            arguments.add("--" + FuncotatorArgumentDefinitions.ANNOTATION_DEFAULTS_LONG_NAME );
+			arguments.add("Validation_Method:Eyeballed it.");
+
             arguments.add("--" + FuncotatorArgumentDefinitions.REFERENCE_VERSION_LONG_NAME);
             arguments.add(FuncotatorArgumentDefinitions.ReferenceVersionType.hg19.toString());
             arguments.add("-" + StandardArgumentDefinitions.OUTPUT_SHORT_NAME);
@@ -153,7 +193,13 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
             arguments.add(outFormat.toString());
 
             runCommandLine(arguments);
+
+            endTime = System.nanoTime();
+
+            System.out.println("  Elapsed Time: " + (endTime - startTime)/1e9 + "s");
         }
+
+        System.out.println("Total Elapsed Time: " + (endTime - overallStartTime)/1e9 + "s");
     }
 
     @Test(dataProvider = "provideForIntegrationTest")

@@ -150,9 +150,6 @@ public class MafOutputRenderer extends OutputRenderer {
             manualAnnotations.putAll(unaccountedForOverrideAnnotations);
         }
 
-        // Cache the manual annotation string so we can pass it easily into any Funcotations:
-        manualAnnotationSerializedString = (manualAnnotations.size() != 0 ? FIELD_DELIMITER + String.join( FIELD_DELIMITER, manualAnnotations.values() ) + FIELD_DELIMITER : "");
-
         // Fill in our default output map:
         initializeDefaultMapWithKeys();
 
@@ -181,6 +178,20 @@ public class MafOutputRenderer extends OutputRenderer {
                 }
             }
         }
+
+        // Update the Default map with manual annotations that we have
+        // and remove those annotations from the manual map:
+        final Iterator<Map.Entry<String, String>> it = manualAnnotations.entrySet().iterator();
+        while ( it.hasNext() ) {
+            final Map.Entry<String, String> manualAnnotation = it.next();
+            if ( defaultMap.containsKey(manualAnnotation.getKey()) ) {
+                defaultMap.put(manualAnnotation.getKey(), manualAnnotation.getValue());
+                it.remove();
+            }
+        }
+
+        // Cache the manual annotation string so we can pass it easily into any Funcotations:
+        manualAnnotationSerializedString = (manualAnnotations.size() != 0 ? FIELD_DELIMITER + String.join( FIELD_DELIMITER, manualAnnotations.values() ) + FIELD_DELIMITER : "");
     }
 
     //==================================================================================================================
@@ -223,7 +234,7 @@ public class MafOutputRenderer extends OutputRenderer {
                 if ( funcotation.getAltAllele().equals(altAllele) ) {
                     // Add all the fields from the other funcotations into the extra field output:
                     for ( final String field : funcotation.getFieldNames() ) {
-                        setField(extraFieldOutputMap, field, mafTransform(field, funcotation.getField(field)));
+                        setField(extraFieldOutputMap, field, funcotation.getField(field));
                     }
                 }
             }
@@ -238,7 +249,7 @@ public class MafOutputRenderer extends OutputRenderer {
             for ( final Map.Entry<String, List<String>> entry : outputFieldNameMap.entrySet() ) {
                 for ( final String fieldName : entry.getValue() ) {
                     if ( extraFieldOutputMap.containsKey(fieldName) ) {
-                        outputMap.put(entry.getKey(), mafTransform(entry.getKey(), extraFieldOutputMap.remove(fieldName).toString()));
+                        outputMap.put(entry.getKey(), extraFieldOutputMap.remove(fieldName));
                         break;
                     }
                 }
@@ -247,17 +258,17 @@ public class MafOutputRenderer extends OutputRenderer {
             // Merge our output maps together:
             outputMap.putAll(extraFieldOutputMap);
 
+            // Now translate fields to the field names that MAF likes:
+            final LinkedHashMap<String, String> mafCompliantOutputMap = enforceValueMafCompliance(outputMap);
+
             // Write our header if we have to:
             if ( ! hasWrittenHeader ) {
-                writeHeader(outputMap);
+                writeHeader(mafCompliantOutputMap);
             }
 
             // Write the output (with manual annotations at the end):
             writeLine(
-                    outputMap.entrySet().stream()
-                            .map(e -> e.getValue())
-                            .map(Object::toString)
-                            .collect(Collectors.joining(FIELD_DELIMITER))
+                    mafCompliantOutputMap.values().stream().collect(Collectors.joining(FIELD_DELIMITER))
                     + manualAnnotationSerializedString
             );
         }
@@ -271,13 +282,29 @@ public class MafOutputRenderer extends OutputRenderer {
     // Instance Methods:
 
     /**
+     * Ensures each value in the given {@code outputMap} is compliant with MAF-expected values.
+     * @param outputMap The {@link Map} of output field -> values to be checked for MAF compliance.
+     * @return A {@link LinkedHashMap} of output field strings -> values to be written to the MAF file.
+     */
+    private LinkedHashMap<String, String> enforceValueMafCompliance( final Map<String, Object> outputMap ) {
+
+        final LinkedHashMap<String, String> finalOutMap = new LinkedHashMap<>(outputMap.size());
+
+        for ( final String key : outputMap.keySet() ) {
+            finalOutMap.put(key, mafTransform(key, outputMap.get(key).toString()) );
+        }
+
+        return finalOutMap;
+    }
+
+    /**
      * Transforms a given {@code value} to the equivalent MAF-valid value based on the given {@code key}.
-     * @param key The {@code key} off of which to base the transformation.
+     * @param key The {@code key} off of which to base the transformation.  This key is the final (transformed) key for output (i.e. the column name in the MAF file).
      * @param value The {@code value} to transform into a MAF-valid value.
      * @return The MAF-valid equivalent of the given {@code value}.
      */
     private String mafTransform(final String key, final String value) {
-        if ( key.equals("Gencode_19_variantClassification") ) {
+        if ( key.equals("Variant_Classification") ) {
             switch(value) {
                 case "IN_FRAME_DEL":             return "In_Frame_Del";
                 case "IN_FRAME_INS":             return "In_Frame_Ins";
@@ -300,6 +327,36 @@ public class MafOutputRenderer extends OutputRenderer {
                 case "LINCRNA":                  return "RNA";
             }
         }
+        else if ( key.equals("Chromosome") ) {
+            if ( value.equals("chrM") ) {
+                return "MT";
+            }
+            else if (value.startsWith("chr")) {
+                return value.substring(3);
+            }
+        }
+        else if ( key.equals("Other_Transcripts") ) {
+            return value.replaceAll("IN_FRAME_DEL", "In_Frame_Del")
+                .replaceAll( "IN_FRAME_DEL", "In_Frame_Del" )
+                .replaceAll( "IN_FRAME_INS", "In_Frame_Ins" )
+                .replaceAll( "FRAME_SHIFT_INS", "Frame_Shift_Ins" )
+                .replaceAll( "FRAME_SHIFT_DEL", "Frame_Shift_Del" )
+                .replaceAll( "MISSENSE", "Missense_Mutation" )
+                .replaceAll( "NONSENSE", "Nonsense_Mutation" )
+                .replaceAll( "SILENT", "Silent" )
+                .replaceAll( "SPLICE_SITE", "Splice_Site" )
+                .replaceAll( "DE_NOVO_START_IN_FRAME", "Translation_Start_Site" )
+                .replaceAll( "DE_NOVO_START_OUT_FRAME", "Translation_Start_Site" )
+                .replaceAll( "START_CODON_SNP", "Translation_Start_Site" )
+                .replaceAll( "START_CODON_INS", "Translation_Start_Site" )
+                .replaceAll( "START_CODON_DEL", "Translation_Start_Site" )
+                .replaceAll( "NONSTOP", "Nonstop_Mutation" )
+                .replaceAll( "FIVE_PRIME_UTR", "5'UTR" )
+                .replaceAll( "THREE_PRIME_UTR", "3'UTR" )
+                .replaceAll( "FIVE_PRIME_FLANK", "5'Flank" )
+                .replaceAll( "INTRON", "Intron" )
+                .replaceAll( "LINCRNA", "RNA" );
+        }
 
         return value;
      }
@@ -316,7 +373,7 @@ public class MafOutputRenderer extends OutputRenderer {
         Utils.nonNull(outputMap);
         Utils.nonNull(key);
 
-        if ( (value != null) && (!value.toString().isEmpty())) {
+        if ( value != null ) {
             outputMap.put(key, value);
         }
         else {
@@ -336,7 +393,7 @@ public class MafOutputRenderer extends OutputRenderer {
      * Write the header to the output file.
      * @param outputMap A populated output map from which to derive the header columns.
      */
-    protected void writeHeader(final LinkedHashMap<String, Object> outputMap) {
+    protected void writeHeader(final LinkedHashMap<String, String> outputMap) {
         // Write out version:
         writeLine(COMMENT_STRING + "version " + VERSION);
         writeLine(COMMENT_STRING + COMMENT_STRING);
@@ -389,7 +446,7 @@ public class MafOutputRenderer extends OutputRenderer {
         defaultMap.put("Chromosome",                                  UNKNOWN_VALUE_STRING );
         defaultMap.put("Start_Position",                              UNKNOWN_VALUE_STRING );
         defaultMap.put("End_Position",                                UNKNOWN_VALUE_STRING );
-        defaultMap.put("Strand",                                      UNKNOWN_VALUE_STRING );
+        defaultMap.put("Strand",                                      "+" );
         defaultMap.put("Variant_Classification",                      UNKNOWN_VALUE_STRING );
         defaultMap.put("Variant_Type",                                UNKNOWN_VALUE_STRING );
         defaultMap.put("Reference_Allele",                            UNKNOWN_VALUE_STRING );
@@ -440,8 +497,7 @@ public class MafOutputRenderer extends OutputRenderer {
         defaultMap.put("GO_Biological_Process",                       UNKNOWN_VALUE_STRING);
         defaultMap.put("GO_Cellular_Component",                       UNKNOWN_VALUE_STRING);
         defaultMap.put("GO_Molecular_Function",                       UNKNOWN_VALUE_STRING);
-        defaultMap.put("COSMIC_overlap",                              UNKNOWN_VALUE_STRING);
-        defaultMap.put("ping_mutations",                              UNKNOWN_VALUE_STRING);
+        defaultMap.put("COSMIC_overlapping_mutations",                UNKNOWN_VALUE_STRING);
         defaultMap.put("COSMIC_fusion_genes",                         UNKNOWN_VALUE_STRING);
         defaultMap.put("COSMIC_tissue_types_affected",                UNKNOWN_VALUE_STRING);
         defaultMap.put("COSMIC_total_alterations_in_gene",            UNKNOWN_VALUE_STRING);
@@ -478,7 +534,7 @@ public class MafOutputRenderer extends OutputRenderer {
         outputFieldNameMap.put( "Chromosome",                           Arrays.asList("Chromosome", "Gencode_19_chromosome", "chr", "contig", "chromosome", "chrom", "Chrom") );
         outputFieldNameMap.put( "Start_Position",                       Arrays.asList("Start_position", "Gencode_19_start", "start", "Start", "start_pos", "pos") );
         outputFieldNameMap.put( "End_Position",                         Arrays.asList("End_position", "Gencode_19_end", "end", "End", "end_pos") );
-        outputFieldNameMap.put( "Strand",                               Arrays.asList("Strand", "Gencode_19_transcriptStrand") );
+        outputFieldNameMap.put( "Strand",                               Arrays.asList("Strand") );
         outputFieldNameMap.put( "Variant_Classification",               Arrays.asList("Variant_Classification", "Gencode_19_variantClassification", "variant_classification") );
         outputFieldNameMap.put( "Variant_Type",                         Arrays.asList("Variant_Type", "Gencode_19_variantType", "variant_type") );
         outputFieldNameMap.put( "Reference_Allele",                     Arrays.asList("Reference_Allele", "Gencode_19_refAllele", "ref", "ref_allele", "reference_allele") );
@@ -532,7 +588,7 @@ public class MafOutputRenderer extends OutputRenderer {
         outputFieldNameMap.put( "GO_Cellular_Component",                Arrays.asList("GO_Cellular_Component", "Simple_Uniprot_GO_Cellular_Component", "UniProt_GO_Cellular_Component") );
         outputFieldNameMap.put( "GO_Molecular_Function",                Arrays.asList("GO_Molecular_Function", "Simple_Uniprot_GO_Molecular_Function", "UniProt_GO_Molecular_Function") );
         outputFieldNameMap.put( "COSMIC_overlapping_mutations",         Arrays.asList("Cosmic_overlapping_mutations", "COSMIC_overlapping_mutations", "COSMIC_overlapping_mutation_AAs") );
-        outputFieldNameMap.put( "COSMIC_fusion_genes",                  Arrays.asList("COSMIC_fusion_genes", "COSMIC_FusionGenes_fusion_genes") );
+        outputFieldNameMap.put( "COSMIC_fusion_genes",                  Arrays.asList("COSMIC_fusion_genes", "CosmicFusion_fusion_genes", "COSMIC_FusionGenes_fusion_genes") );
         outputFieldNameMap.put( "COSMIC_tissue_types_affected",         Arrays.asList("CosmicTissue_tissue_types_affected", "COSMIC_tissue_types_affected", "COSMIC_Tissue_tissue_types_affected") );
         outputFieldNameMap.put( "COSMIC_total_alterations_in_gene",     Arrays.asList("CosmicTissue_total_alterations_in_gene", "COSMIC_total_alterations_in_gene", "COSMIC_Tissue_total_alterations_in_gene") );
         outputFieldNameMap.put( "Tumorscape_Amplification_Peaks",       Arrays.asList("Tumorscape_Amplification_Peaks", "TUMORScape_Amplification_Peaks") );
