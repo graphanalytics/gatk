@@ -1,11 +1,13 @@
 package org.broadinstitute.hellbender.tools.spark.sv.discovery.prototype;
 
+import htsjdk.samtools.util.SequenceUtil;
 import org.broadinstitute.barclay.argparser.Argument;
 import org.broadinstitute.barclay.argparser.BetaFeature;
 import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
 import org.broadinstitute.hellbender.cmdline.CommandLineProgram;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
 import org.broadinstitute.hellbender.cmdline.programgroups.StructuralVariantDiscoveryProgramGroup;
+import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.*;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVKmer.Base;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVFastqUtils.FastqRead;
@@ -125,33 +127,68 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
         //}
 
         // build contigs
-        final List<String> contigs = new ArrayList<>();
-        final Map<SVKmerLong, Integer> contigEnds = new HashMap<>();
+        final List<Contig> contigs = new ArrayList<>();
+        final Map<SVKmerLong, ContigEnd> contigEnds = new HashMap<>();
         kmerAdjacencyMap.forEach( (kmer, counts) -> {
             if ( !contigEnds.containsKey(kmer) ) {
-                final Integer contigId = contigs.size();
-                contigEnds.put(kmer, contigId);
+                final int contigId = contigs.size();
+                Contig contig = null;
                 final SVKmerLong predecessor = getSolePredecessor(kmer, kSize2, counts);
-                if (predecessor == null || getSuccessorCount(predecessor, kSize2, kmerAdjacencyMap) > 1) {
-                    final SVKmerLong lastKmer = buildContig(kmer, kSize2, counts, kmerAdjacencyMap, contigs);
-                    contigEnds.put(lastKmer.canonical(kSize2), contigId);
+                if ( predecessor == null || getSuccessorCount(predecessor, kSize2, kmerAdjacencyMap) > 1 ) {
+                    contig = buildContig(kmer, kSize2, counts, kmerAdjacencyMap, contigId);
                 } else {
                     final SVKmerLong successor = getSoleSuccessor(kmer, kSize2, counts);
-                    if (successor == null || getPredecessorCount(successor, kSize2, kmerAdjacencyMap) > 1) {
-                        final SVKmerLong lastKmer =
-                                buildContig(kmer.reverseComplement(kSize2), kSize2, counts, kmerAdjacencyMap, contigs);
-                        contigEnds.put(lastKmer.canonical(kSize2), contigId);
+                    if ( successor == null || getPredecessorCount(successor, kSize2, kmerAdjacencyMap) > 1 ) {
+                        contig = buildContig(kmer.reverseComplement(kSize2), kSize2, counts, kmerAdjacencyMap, contigId);
                     }
+                }
+                if ( contig != null ) {
+                    contigs.add(contig);
+                    contigEnds.put(contig.getFirst().getKmer(), contig.getFirst());
+                    contigEnds.put(contig.getLast().getKmer(), contig.getLast());
                 }
             }
         });
 
         // dump contigs
-        int contigId = 0;
-        contigs.sort(Comparator.comparingInt(String::length));
-        for ( final String contig : contigs ) {
-            System.out.println(">contig" + contigId++ + " len=" + contig.length());
-            System.out.println(contig);
+        for ( final Contig contig : contigs ) {
+            final int contigId = contig.getFirst().getContigId();
+            final int seqLen = contig.getSequence().length();
+            System.out.println("S\t" + contigId + "\t" + contig.getSequence() + "\tLN:i:" + seqLen);
+            for ( final SVKmerLong kmer : contig.getFirst().getConnections() ) {
+                final ContigEnd target = contigEnds.get(kmer);
+                if ( target.getContigId() >= contigId ) {
+                    final String dir = target.isFirst() ? "+" : "-";
+                    System.out.println("L\ttig" + contigId + "\t-\t" + target.getContigId() + "\t" + dir);
+                    System.out.println(SequenceUtil.reverseComplement(contig.getSequence().substring(0, 60)));
+                    final String targetSequence = contigs.get(target.getContigId()).getSequence();
+                    final String targetSubSequence;
+                    if ( target.isFirst() ) {
+                        targetSubSequence = targetSequence.substring(0, 60);
+                    } else {
+                        targetSubSequence =
+                                SequenceUtil.reverseComplement(targetSequence.substring(targetSequence.length()-60));
+                    }
+                    System.out.println(targetSubSequence);
+                }
+            }
+            for ( final SVKmerLong kmer : contig.getLast().getConnections() ) {
+                final ContigEnd target = contigEnds.get(kmer);
+                if ( target.getContigId() >= contigId ) {
+                    final String dir = target.isFirst() ? "+" : "-";
+                    System.out.println("L\ttig" + contigId + "\t+\t" + target.getContigId() + "\t" + dir);
+                    System.out.println(contig.getSequence().substring(contig.getSequence().length()-60));
+                    final String targetSequence = contigs.get(target.getContigId()).getSequence();
+                    final String targetSubSequence;
+                    if ( target.isFirst() ) {
+                        targetSubSequence = targetSequence.substring(0, 60);
+                    } else {
+                        targetSubSequence =
+                                SequenceUtil.reverseComplement(targetSequence.substring(targetSequence.length()-60));
+                    }
+                    System.out.println(targetSubSequence);
+                }
+            }
         }
 
         return null;
@@ -187,7 +224,7 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
 
     private static int getPredecessorCount( final SVKmerLong kmer, final int kSize,
                                             final Map<SVKmerLong, int[]> kmerAdjacencyMap ) {
-        if (!kmer.isCanonical(kSize)) {
+        if ( !kmer.isCanonical(kSize) ) {
             return getSuccessorCount(kmer.reverseComplement(kSize), kSize, kmerAdjacencyMap);
         }
         return getPredecessorCount(kmerAdjacencyMap.get(kmer));
@@ -199,7 +236,7 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
 
     private static int getSuccessorCount( final SVKmerLong kmer, final int kSize,
                                           final Map<SVKmerLong, int[]> kmerAdjacencyMap ) {
-        if (!kmer.isCanonical(kSize)) {
+        if ( !kmer.isCanonical(kSize) ) {
             return getPredecessorCount(kmer.reverseComplement(kSize), kSize, kmerAdjacencyMap);
         }
         return getSuccessorCount(kmerAdjacencyMap.get(kmer));
@@ -209,19 +246,92 @@ public class KmerAdjacencyBuilder extends CommandLineProgram {
         return (counts[4] > 0 ? 1 : 0) + (counts[5] > 0 ? 1 : 0) + (counts[6] > 0 ? 1 : 0) + (counts[7] > 0 ? 1 : 0);
     }
 
-    private static SVKmerLong buildContig( final SVKmerLong kmerArg, final int kSize, final int[] countsArg,
-                                     final Map<SVKmerLong, int[]> kmerAdjacencyMap, final List<String> contigs ) {
+    private static Contig buildContig( final SVKmerLong kmerArg, final int kSize, final int[] countsArg,
+                                     final Map<SVKmerLong, int[]> kmerAdjacencyMap, final int contigId ) {
+        final ContigEnd firstEnd = new ContigEnd(contigId, true, kmerArg, kSize, countsArg);
         final StringBuilder sb = new StringBuilder(kmerArg.toString(kSize));
-        SVKmerLong lastKmer = kmerArg;
         SVKmerLong kmer = kmerArg;
+        SVKmerLong lastKmer = kmerArg;
         int[] counts = countsArg;
+        int[] lastCounts = countsArg;
         while ( (kmer = getSoleSuccessor(kmer, kSize, counts)) != null ) {
             counts = kmerAdjacencyMap.get(kmer.canonical(kSize));
             if ( (kmer.isCanonical(kSize) ? getPredecessorCount(counts) : getSuccessorCount(counts)) != 1 ) break;
             sb.append(kmer.lastBase().toString());
             lastKmer = kmer;
+            lastCounts = counts;
         }
-        contigs.add(sb.toString());
-        return lastKmer;
+        final ContigEnd lastEnd = new ContigEnd(contigId, false, lastKmer, kSize, lastCounts);
+        return new Contig(sb.toString(), firstEnd, lastEnd);
+    }
+
+    private static final class ContigEnd {
+        private final SVKmerLong kmer;
+        private final int contigId;
+        private final boolean isFirst;
+        private final boolean isCanonical;
+        private final List<SVKmerLong> connections;
+
+        public ContigEnd( final int contigId, final boolean isFirst,
+                          final SVKmerLong kmer, final int kSize, final int[] counts ) {
+            this.kmer = kmer.canonical(kSize);
+            this.contigId = contigId;
+            this.isFirst = isFirst;
+            this.isCanonical = kmer.isCanonical(kSize);
+            this.connections =
+                    new ArrayList<>(isFirst==isCanonical?getPredecessorCount(counts):getSuccessorCount(counts));
+            addConnections( kSize, counts );
+        }
+
+        public SVKmerLong getKmer() { return kmer; }
+        public int getContigId() { return contigId; }
+        public boolean isFirst() { return isFirst; }
+        public boolean isCanonical() { return isCanonical; }
+        public List<SVKmerLong> getConnections() { return Collections.unmodifiableList(connections); }
+
+        private void addConnections( final int kSize, final int[] counts ) {
+            for ( final Base base : Base.values() ) {
+                if ( isFirst ) {
+                    if ( isCanonical ) {
+                        if ( counts[base.ordinal()] > 0 ) {
+                            connections.add(kmer.predecessor(base, kSize).canonical(kSize));
+                        }
+                    } else {
+                        if ( counts[4 + base.complement().ordinal()] > 0 ) {
+                            connections.add(kmer.successor(base.complement(), kSize).canonical(kSize));
+                        }
+                    }
+                } else {
+                    if ( isCanonical ) {
+                        if ( counts[4 + base.ordinal()] > 0 ) {
+                            connections.add(kmer.successor(base, kSize).canonical(kSize));
+                        }
+                    } else {
+                        if ( counts[base.complement().ordinal()] > 0 ) {
+                            connections.add(kmer.predecessor(base.complement(), kSize).canonical(kSize));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static final class Contig {
+        private final String sequence;
+        private final ContigEnd first;
+        private final ContigEnd last;
+
+        public Contig( final String sequence, final ContigEnd first, final ContigEnd last ) {
+            this.sequence = sequence;
+            this.first = first;
+            this.last = last;
+            if ( !first.isFirst() || last.isFirst() || first.getContigId() != last.getContigId() ) {
+                throw new GATKException("something got mixed up when building the contig");
+            }
+        }
+
+        public String getSequence() { return sequence; }
+        public ContigEnd getFirst() { return first; }
+        public ContigEnd getLast() { return last; }
     }
 }
