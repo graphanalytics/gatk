@@ -26,7 +26,7 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
 
     // Whether to do debug output (i.e. leave output around).
     // This should always be true when checked in.
-    private static final boolean doDebugTests = false;
+    private static final boolean doDebugTests = true;
 
     static {
         if ( !doDebugTests ) {
