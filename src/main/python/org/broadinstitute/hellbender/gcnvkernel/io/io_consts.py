@@ -21,6 +21,14 @@ average_ploidy_column_name = 'AVERAGE_PLOIDY'
 ploidy_column_name = 'PLOIDY'
 ploidy_gq_column_name = 'PLOIDY_GQ'
 
+# column names for copy-number segments file
+copy_number_call_column_name = 'COPY_NUMBER_CALL'
+num_spanning_intervals_column_name = 'NUM_SPANNING_INTERVALS'
+some_quality_column_name = 'SOME_QUALITY'
+exact_quality_column_name = 'EXACT_QUALITY'
+start_quality_column_name = 'START_QUALITY'
+end_quality_column_name =  'END_QUALITY'
+
 # regular expression for matching sample name from header comment line
 sample_name_header_regexp = "^@RG.*SM:(.*)[\t]*.*$"
 
