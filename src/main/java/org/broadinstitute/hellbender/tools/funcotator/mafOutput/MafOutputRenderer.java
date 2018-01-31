@@ -478,7 +478,7 @@ public class MafOutputRenderer extends OutputRenderer {
         outputFieldNameMap.put( "Chromosome",                           Arrays.asList("Chromosome", "Gencode_19_chromosome", "chr", "contig", "chromosome", "chrom", "Chrom") );
         outputFieldNameMap.put( "Start_Position",                       Arrays.asList("Start_position", "Gencode_19_start", "start", "Start", "start_pos", "pos") );
         outputFieldNameMap.put( "End_Position",                         Arrays.asList("End_position", "Gencode_19_end", "end", "End", "end_pos") );
-        outputFieldNameMap.put( "Strand",                               Arrays.asList("Strand", "Strand") );
+        outputFieldNameMap.put( "Strand",                               Arrays.asList("Strand", "Gencode_19_transcriptStrand") );
         outputFieldNameMap.put( "Variant_Classification",               Arrays.asList("Variant_Classification", "Gencode_19_variantClassification", "variant_classification") );
         outputFieldNameMap.put( "Variant_Type",                         Arrays.asList("Variant_Type", "Gencode_19_variantType", "variant_type") );
         outputFieldNameMap.put( "Reference_Allele",                     Arrays.asList("Reference_Allele", "Gencode_19_refAllele", "ref", "ref_allele", "reference_allele") );

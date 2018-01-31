@@ -44,18 +44,17 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
     // Helper methods to create output files and maybe leave them around to debug the test output.
 
     private static File getOutputFile(final FuncotatorArgumentDefinitions.OutputFormatType outputFormatType) {
-        return getOutputFile( outputFormatType, "funcotator_tmp_out", outputFormatType.toString().toLowerCase() );
+        return getOutputFile( "funcotator_tmp_out", outputFormatType.toString().toLowerCase() );
     }
 
-    private static File getOutputFile(final FuncotatorArgumentDefinitions.OutputFormatType outputFormatType,
-                                      final String outfileBaseName,
+    private static File getOutputFile(final String outfileBaseName,
                                       final String outFileExtension) {
         final File outputFile;
         if ( !doDebugTests ) {
             outputFile = createTempFile(tmpOutDir + File.separator + outfileBaseName, "." + outFileExtension);
         }
         else {
-            outputFile = new File(tmpOutDir, outfileBaseName + "." + outputFormatType.toString().toLowerCase());
+            outputFile = new File(tmpOutDir, outfileBaseName + "." + outFileExtension);
         }
         return outputFile;
     }
@@ -120,7 +119,13 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
 
         for ( final FuncotatorArgumentDefinitions.OutputFormatType outFormat : outFormatList) {
 
-            final File outputFile = getOutputFile(outFormat, "funcotator_tmp_out_spot_check", outFormat.toString().toLowerCase());
+            final File outputFile;
+            if ( outFormat == FuncotatorArgumentDefinitions.OutputFormatType.VCF ) {
+                outputFile = getOutputFile("funcotator_tmp_out_spot_check", outFormat.toString().toLowerCase());
+            }
+            else {
+                outputFile = getOutputFile("funcotator_tmp_out_spot_check.maf", "tsv");
+            }
 
             final List<String> arguments = new ArrayList<>();
 
@@ -162,7 +167,7 @@ public class FuncotatorIntegrationTest extends CommandLineProgramTest {
 
         final String outFileName = "funcotator_tmp_out_" + xsvMatchType.toString() + "_" + transcriptName + "." + outputFormatType.toString().toLowerCase();
 
-        final File outputFile = getOutputFile( outputFormatType, outFileName.substring(0,outFileName.length()-4), outFileName.substring(outFileName.length()-3) );
+        final File outputFile = getOutputFile( outFileName.substring(0,outFileName.length()-4), outFileName.substring(outFileName.length()-3) );
 
         final List<String> arguments = new ArrayList<>();
 
