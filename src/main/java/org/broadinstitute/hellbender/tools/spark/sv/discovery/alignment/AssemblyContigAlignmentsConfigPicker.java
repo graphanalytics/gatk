@@ -10,6 +10,7 @@ import org.apache.spark.api.java.JavaRDD;
 import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoverFromLocalAssemblyContigAlignmentsSpark;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoveryUtils;
+import org.broadinstitute.hellbender.tools.spark.sv.utils.RDDUtils;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVUtils;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SvCigarUtils;
 import org.broadinstitute.hellbender.utils.Utils;
@@ -48,8 +49,52 @@ public class AssemblyContigAlignmentsConfigPicker {
         final JavaRDD<AlignedContig> parsedContigAlignments =
                 convertRawAlignmentsToAlignedContigAndFilterByQuality(assemblyAlignments, header, toolLogger);
 
-        return filterAndSplitGappedAlignmentInterval(parsedContigAlignments, nonCanonicalContigNamesFile,
-                                      header.getSequenceDictionary(), scoreDiffTolerance);
+        final JavaRDD<AlignedContig> parsedContigs = filterAndSplitGappedAlignmentInterval(parsedContigAlignments, nonCanonicalContigNamesFile,
+                header.getSequenceDictionary(), scoreDiffTolerance);
+
+        return breakTieByPreferringLessAlignments(parsedContigs);
+    }
+
+    //==================================================================================================================
+
+    // TODO: 1/31/18 this is a proof of concept, we could expand on allowing a customizable MQ threshold, and save the bad mappings as String representations for later annotation
+    /**
+     * For contigs with more than 1 best-scored configurations as determined by
+     * {@link #pickBestConfigurations(AlignedContig, Set, Double)},
+     * save the contigs that has one and only one configuration that
+     * has all mapping quality above 0.
+     */
+    private static JavaRDD<AlignedContig>
+    breakTieByPreferringLessAlignments(final JavaRDD<AlignedContig> contigsWithAmbiguousPictures) {
+        final JavaRDD<Iterable<AlignedContig>> contigsGroupedByName =
+                contigsWithAmbiguousPictures.groupBy(contig -> contig.contigName).values();
+
+        final Tuple2<JavaRDD<Iterable<AlignedContig>>, JavaRDD<Iterable<AlignedContig>>> split =
+                RDDUtils.split(contigsGroupedByName, AssemblyContigAlignmentsConfigPicker::hasOneAndOnlyOneAllNonZeroMQs, false);
+
+        final JavaRDD<AlignedContig> savedOnes =
+                split._1
+                        .map(representations ->
+                                Utils.stream(representations)
+                                        .filter(representation ->
+                                                representation.alignmentIntervals.stream().mapToInt(ai -> ai.mapQual).min().orElse(0) != 0)
+                                        .findFirst()
+                                        .orElseThrow(() -> new GATKException(""))
+                        )
+                        .map(contig ->
+                                new AlignedContig(contig.contigName, contig.contigSequence, contig.alignmentIntervals,
+                                        false));
+
+        final JavaRDD<AlignedContig> unsavedOnes = split._2.flatMap(iterables -> Utils.stream(iterables).iterator());
+        return savedOnes.union(unsavedOnes);
+    }
+
+    private static boolean hasOneAndOnlyOneAllNonZeroMQs(final Iterable<AlignedContig> differentRepresentationsForOneContig) {
+        return Utils.stream(differentRepresentationsForOneContig)
+                .map(configuration -> configuration.alignmentIntervals.stream().mapToInt(ai -> ai.mapQual).min().orElse(0))
+                .filter(i -> i != 0)
+                .count()
+                == 1;
     }
 
     //==================================================================================================================
