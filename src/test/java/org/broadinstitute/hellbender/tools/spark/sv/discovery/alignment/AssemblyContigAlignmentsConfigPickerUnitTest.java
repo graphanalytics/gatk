@@ -12,7 +12,7 @@ import org.testng.annotations.Test;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigAlignmentsConfigPicker.getCanonicalChromosomes;
+import static org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoveryUtils.getCanonicalChromosomes;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 

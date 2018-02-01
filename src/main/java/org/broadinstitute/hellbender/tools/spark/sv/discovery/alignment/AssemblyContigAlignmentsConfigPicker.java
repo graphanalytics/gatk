@@ -5,25 +5,20 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import htsjdk.samtools.SAMFileHeader;
 import htsjdk.samtools.SAMSequenceDictionary;
-import htsjdk.samtools.SAMSequenceRecord;
 import org.apache.logging.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
 import org.broadinstitute.hellbender.exceptions.GATKException;
-import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoverFromLocalAssemblyContigAlignmentsSpark;
+import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoveryUtils;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVUtils;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SvCigarUtils;
 import org.broadinstitute.hellbender.utils.Utils;
-import org.broadinstitute.hellbender.utils.io.IOUtils;
 import org.broadinstitute.hellbender.utils.read.GATKRead;
 import scala.Tuple2;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection.DiscoverVariantsFromContigsAlignmentsSparkArgumentCollection.GAPPED_ALIGNMENT_BREAK_DEFAULT_SENSITIVITY;
 
@@ -61,8 +56,9 @@ public class AssemblyContigAlignmentsConfigPicker {
 
     /**
      * Parses input alignments into custom {@link AlignmentInterval} format, and
-     * performs a primitive filtering on the contigs implemented in {@link #notDiscardForBadMQ(AlignedContig)} that
-     *   gets rid of contigs with no good alignments.
+     * performs a primitive filtering on the contigs implemented in
+     * {@link #notDiscardForBadMQ(AlignedContig)} that
+     * gets rid of contigs with no good alignments.
      */
     private static JavaRDD<AlignedContig> convertRawAlignmentsToAlignedContigAndFilterByQuality(final JavaRDD<GATKRead> assemblyAlignments,
                                                                                                 final SAMFileHeader header,
@@ -117,7 +113,7 @@ public class AssemblyContigAlignmentsConfigPicker {
                                                                         final SAMSequenceDictionary dictionary,
                                                                         final Double scoreDiffTolerance) {
 
-        final Set<String> canonicalChromosomes = getCanonicalChromosomes(nonCanonicalContigNamesFile, dictionary);
+        final Set<String> canonicalChromosomes = SvDiscoveryUtils.getCanonicalChromosomes(nonCanonicalContigNamesFile, dictionary);
 
         return parsedContigAlignments
                 .mapToPair(alignedContig -> new Tuple2<>(alignedContig.contigName,
@@ -328,25 +324,4 @@ public class AssemblyContigAlignmentsConfigPicker {
         }
     }
 
-    /**
-     * Primary reference contigs are defined as chromosomes 1-22, X, Y, M, and defined for both GRCh38 and hg19.
-     */
-    @VisibleForTesting
-    static Set<String> getCanonicalChromosomes(final String nonCanonicalContigNamesFile, final SAMSequenceDictionary dictionary) {
-        if (nonCanonicalContigNamesFile!= null) {
-
-            try (final Stream<String> nonCanonical = Files.lines(IOUtils.getPath((nonCanonicalContigNamesFile)))) {
-                return new HashSet<>( Sets.difference(dictionary.getSequences().stream().map(SAMSequenceRecord::getSequenceName).collect(Collectors.toSet()),
-                        nonCanonical.collect(Collectors.toSet())) );
-            } catch ( final IOException ioe ) {
-                throw new UserException("Can't read nonCanonicalContigNamesFile file "+nonCanonicalContigNamesFile, ioe);
-            }
-        } else {
-            final List<String> first22ChromosomesNum = IntStream.range(0, 23).mapToObj(String::valueOf).collect(Collectors.toList());
-            final Set<String> canonicalChromosomeNames = first22ChromosomesNum.stream().map(name -> "chr" + name).collect(Collectors.toSet());
-            canonicalChromosomeNames.addAll(first22ChromosomesNum);
-            canonicalChromosomeNames.addAll(Arrays.asList("chrX", "chrY", "chrM", "X", "Y", "MT"));
-            return new HashSet<>( canonicalChromosomeNames );
-        }
-    }
 }

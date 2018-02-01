@@ -1,15 +1,28 @@
 package org.broadinstitute.hellbender.tools.spark.sv.discovery;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 import htsjdk.samtools.SAMSequenceDictionary;
+import htsjdk.samtools.SAMSequenceRecord;
 import org.apache.logging.log4j.Logger;
+import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection.DiscoverVariantsFromContigsAlignmentsSparkArgumentCollection;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.inference.NovelAdjacencyReferenceLocations;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVInterval;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVIntervalTree;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVVCFReader;
 import org.broadinstitute.hellbender.utils.SimpleInterval;
+import org.broadinstitute.hellbender.utils.io.IOUtils;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class SvDiscoveryUtils {
 
@@ -77,5 +90,27 @@ public class SvDiscoveryUtils {
         final float falseNeg = 1.f - trueBreakpoints.overlapFraction(intervals);
         final int nTrue = trueBreakpoints.size();
         localLogger.info("Interval false negative rate = " + falseNeg + " (" + Math.round(falseNeg*nTrue) + "/" + nTrue + ")");
+    }
+
+    /**
+     * Primary reference contigs are defined as chromosomes 1-22, X, Y, M, and defined for both GRCh38 and hg19.
+     */
+    @VisibleForTesting
+    public static Set<String> getCanonicalChromosomes(final String nonCanonicalContigNamesFile, final SAMSequenceDictionary dictionary) {
+        if (nonCanonicalContigNamesFile!= null) {
+
+            try (final Stream<String> nonCanonical = Files.lines(IOUtils.getPath((nonCanonicalContigNamesFile)))) {
+                return new HashSet<>( Sets.difference(dictionary.getSequences().stream().map(SAMSequenceRecord::getSequenceName).collect(Collectors.toSet()),
+                        nonCanonical.collect(Collectors.toSet())) );
+            } catch ( final IOException ioe ) {
+                throw new UserException("Can't read nonCanonicalContigNamesFile file "+nonCanonicalContigNamesFile, ioe);
+            }
+        } else {
+            final List<String> first22ChromosomesNum = IntStream.range(0, 23).mapToObj(String::valueOf).collect(Collectors.toList());
+            final Set<String> canonicalChromosomeNames = first22ChromosomesNum.stream().map(name -> "chr" + name).collect(Collectors.toSet());
+            canonicalChromosomeNames.addAll(first22ChromosomesNum);
+            canonicalChromosomeNames.addAll(Arrays.asList("chrX", "chrY", "chrM", "X", "Y", "MT"));
+            return new HashSet<>( canonicalChromosomeNames );
+        }
     }
 }
